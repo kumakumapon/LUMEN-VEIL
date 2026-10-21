@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a1627" />
+  <meta name="description" content="LUMEN VEIL — 名前のない夜明け。雲海の浮遊港を旅する、記憶と灯のファンタジーRPG。" />
+  <title>LUMEN VEIL | 名前のない夜明け</title>
+  <link rel="icon" href="%BASE_URL%assets/mark.svg" type="image/svg+xml" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="LUMEN VEIL タイトルへ"><span class="brand-symbol">✧</span><span>LUMEN <strong>VEIL</strong></span></a>
+    <span class="build-label">CHAPTER 00 <span>•</span> THE VANISHING PORT</span>
+    <nav class="toolbar" aria-label="ゲームメニュー">
+      <button id="btn-new" type="button" title="最初から始める">最初から</button>
+      <button id="btn-save" type="button" disabled>保存</button>
+      <button id="btn-load" type="button">続きから</button>
+      <button id="btn-journal" type="button" disabled>記録</button>
+      <button id="btn-settings" type="button">設定 <span aria-hidden="true">⚙</span></button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="title-screen" class="title-screen screen" aria-labelledby="hero-title">
+      <div class="title-haze" aria-hidden="true"></div>
+      <div class="title-content">
+        <div class="eyebrow"><span class="line"></span> A TALE OF LOST NAMES <span class="line"></span></div>
+        <h1 id="hero-title">LUMEN <em>VEIL</em></h1>
+        <p class="title-sub">名前のない夜明け</p>
+        <p class="title-tagline">夜明けのたびに、世界から名前が消える。<br />それでも、君だけは覚えていた。</p>
+        <div class="title-actions">
+          <button id="btn-start" class="primary-btn" type="button">旅を始める <span aria-hidden="true">↗</span></button>
+          <button id="btn-title-continue" class="secondary-btn" type="button" disabled>記憶から再開する</button>
+        </div>
+        <p class="intro-meta">EXPLORATION <span>✦</span> COMMAND BATTLE <span>✦</span> MEMORIES</p>
+      </div>
+      <div class="title-vertical" aria-hidden="true">ONE NAME CAN CHANGE THE DAWN</div>
+      <div class="title-footer" aria-hidden="true"><span>✧</span> 浮遊港オルテ <span>◈</span> 現在地：夜明け前</div>
+    </section>
+
+    <section id="game-screen" class="game-screen screen" hidden aria-label="ゲーム本編">
+      <div id="landscape" class="landscape area-harbor">
+        <div id="phaser-stage" class="phaser-stage" aria-label="歩けるフィールド。タップして移動。矢印キーまたはWASDでも移動できます。"></div>
+        <div class="landscape-overlay"></div>
+        <div class="walking-guide" id="walking-guide" aria-hidden="true">✥ 画面タップ / WASD で歩く <span>•</span> 光の印を調べる</div>
+        <div class="scene-topline"><span id="area-kicker">THE VANISHING PORT</span><span id="scene-location">01 / FLOATING HARBOR</span></div>
+        <div class="scene-copy">
+          <p class="chapter-label">CHAPTER 00 — 消える港</p>
+          <h2 id="area-title">浮遊港オルテ</h2>
+          <p id="area-description"></p>
+        </div>
+        <div class="scene-index" aria-hidden="true">◈ <span id="area-index">01</span></div>
+      </div>
+      <div class="play-layout">
+        <section class="interaction-panel" aria-label="探索と戦闘">
+          <div class="panel-heading"><span>◈</span><h3 id="section-title">EXPLORE <small>探索する</small></h3><span class="panel-rule"></span></div>
+          <div id="hotspots" class="hotspots"></div>
+          <div id="battle-panel" class="battle-panel" hidden>
+            <div class="foe-header"><div><span class="mini-label">ENCOUNTER · WAIT MODE</span><h3 id="foe-name"></h3></div><span class="foe-sigil" aria-hidden="true">◇</span></div>
+            <div class="foe-bars"><span>HP</span><progress id="foe-hp" max="100" value="100"></progress><span>BREAK</span><progress id="foe-break" class="breakbar" max="100" value="100"></progress></div>
+            <p id="foe-intent" class="intent"></p>
+            <p id="active-hero" class="active-hero"></p>
+            <div class="atb-row" aria-label="ATBチャージ">
+              <span>ACTIVE TIME BATTLE <b id="atb-name">WAIT</b></span>
+              <progress id="atb-fill" max="100" value="0" aria-label="行動可能までのATBゲージ"></progress>
+              <strong id="atb-status" aria-live="off">CHARGING</strong>
+            </div>
+            <div id="commands" class="commands">
+              <button type="button" data-command="attack">01 <strong>たたかう</strong><small>ATTACK</small></button>
+              <button type="button" data-command="arts">02 <strong>術技</strong><small>ARTS</small></button>
+              <button type="button" data-command="echo">03 <strong>残響</strong><small>ECHO</small></button>
+              <button type="button" data-command="guard">04 <strong>防御</strong><small>GUARD</small></button>
+            </div>
+          </div>
+          <div id="defeat-panel" class="result-panel" hidden><h3>THE LIGHT FADES</h3><p>まだ、物語を終わらせるわけにはいかない。</p><button id="btn-retry" class="primary-btn" type="button">再び立ち上がる</button></div>
+          <div class="dialogue"><span class="dialogue-mark" aria-hidden="true">❞</span><p id="narrative" aria-live="polite"></p></div>
+        </section>
+        <aside class="status-panel" aria-label="冒険の記録">
+          <section class="objective-panel"><div class="tiny-heading">CURRENT OBJECTIVE <span>01</span></div><p id="objective">港にいる記録士に話しかける</p><div class="signal"></div></section>
+          <section class="party-panel"><div class="tiny-heading">PARTY STATUS <span>✧</span></div><div id="party"></div></section>
+          <section class="memory-panel"><div class="tiny-heading">RESONANCE <span>✦</span></div><div class="resonance-line"><progress id="resonance" max="100" value="0"></progress><span id="resonance-number">0%</span></div><p>仲間の行動を重ね、記憶を再演する。</p></section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="ending-screen" class="ending-screen screen" hidden aria-labelledby="ending-title">
+      <div class="ending-inner"><p class="eyebrow">CHAPTER 00 — END</p><h2 id="ending-title">名前は、まだここに。</h2><p id="ending-copy">飛空艇は雲海の向こうへ。</p><p>消えた故郷を覚えている者たちの旅は、ここから始まる。</p><button id="btn-ending-new" class="primary-btn" type="button">もう一度、旅を始める</button></div>
+    </section>
+  </main>
+  <footer class="site-footer"><span>© LUMEN VEIL • AN ORIGINAL FANTASY RPG</span><span id="notice" role="status" aria-live="polite">記憶は、この端末に保存されます。</span><span>GITHUB PAGES EDITION · PHASER</span></footer>
+  <dialog id="overlay" class="modal" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title"></h2><button id="btn-close" type="button" aria-label="閉じる">✕</button></div><div id="modal-content"></div></dialog>
+  <input id="import-file" type="file" accept="application/json,.json" hidden aria-label="セーブファイル読込み" />
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

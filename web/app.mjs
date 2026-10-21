@@ -12,25 +12,14 @@ try {
   if (typeof raw.fontScale === 'number' && raw.fontScale >= 1 && raw.fontScale <= 1.2) settings.fontScale = raw.fontScale;
   if (['easy', 'normal', 'hard'].includes(raw.difficulty)) settings.difficulty = raw.difficulty;
 } catch { /* Settings may be unavailable in restricted browsing contexts. */ }
-let audio = null;
 function beep(high = false) {
-  if (!settings.volume || document.hidden) return;
-  try {
-    const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
-    if (!Context) return;
-    audio ||= new Context();
-    if (audio.state === 'suspended') void audio.resume();
-    const osc = audio.createOscillator(), gain = audio.createGain();
-    const now = audio.currentTime;
-    osc.type = 'sine'; osc.frequency.setValueAtTime(high ? 660 : 440, now);
-    osc.frequency.exponentialRampToValueAtTime(high ? 880 : 550, now + .11);
-    gain.gain.setValueAtTime(.001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.001, settings.volume * .045), now + .015);
-    gain.gain.exponentialRampToValueAtTime(.001, now + .2);
-    osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + .21);
-  } catch { /* Audio never blocks gameplay. */ }
+  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: high ? 'confirm' : 'select' } }));
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden && audio?.state === 'running') void audio.suspend(); });
+function announce() {
+  // The quest state and settings are observed by Phaser, ATB and Web Audio.
+  // Presentation state is deliberately excluded from old IndexedDB snapshots.
+  window.dispatchEvent(new CustomEvent('lv:render', { detail: { state, settings } }));
+}
 function notice(message, isError = false) {
   const out = $('notice'); out.textContent = message; out.style.color = isError ? '#ffb7a8' : '';
 }
@@ -39,6 +28,7 @@ function persistSettings() {
   document.documentElement.style.setProperty('--text-scale', String(settings.fontScale));
   document.body.classList.toggle('reduce-motion', settings.reduceMotion);
   if (state) state.difficulty = settings.difficulty;
+  window.dispatchEvent(new CustomEvent('lv:settings', { detail: settings }));
 }
 async function checkpoint() {
   if (!state) return;
@@ -63,14 +53,14 @@ function switchScreen(view) {
 }
 function text(id, value) { $(id).textContent = value; }
 function render() {
-  if (!state) { switchScreen('title'); renderButtons(); return; }
+  if (!state) { switchScreen('title'); renderButtons(); announce(); return; }
   switchScreen(state.phase);
   renderButtons();
   if (state.phase === 'ending') {
     text('ending-copy', state.records.length === 2
       ? '消えた手紙と航海士ミラの名を記録した。小さな光を携え、飛空艇は雲海の向こうへ。'
       : '消えた名前を取り戻す手掛かりを求め、飛空艇は雲海の向こうへ。');
-    return;
+    announce(); return;
   }
   const area = AREAS[state.area];
   $('landscape').className = `landscape area-${state.area}`;
@@ -94,13 +84,16 @@ function render() {
     const title = document.createElement('strong'); title.textContent = h.label;
     const detail = document.createElement('small'); detail.textContent = h.caption;
     content.append(title, detail); button.append(symbol, content); hotspots.append(button);
-    button.addEventListener('click', () => { const prev = state; state = interact(state, h.id); beep(state !== prev); render(); if (state.phase !== 'battle') void checkpoint(); });
+    button.addEventListener('click', () => selectHotspot(h.id, true));
   }
   const party = $('party'); party.replaceChildren();
   for (const [i, hero] of state.party.entries()) {
     if (i === 2 && !state.flags.ritz) continue;
     const row = document.createElement('div'); row.className = 'party-member';
-    const portrait = document.createElement('span'); portrait.className = 'party-symbol'; portrait.textContent = ['◇', '✧', '⚙'][i];
+    const portrait = document.createElement('span'); portrait.className = 'party-symbol portrait';
+    const image = document.createElement('img'); image.src = `${import.meta.env.BASE_URL}assets/portrait-${hero.id}.webp`;
+    image.alt = ''; image.loading = 'lazy'; portrait.append(image);
+    if (state.phase === 'battle' && i === activeHero(state)) row.classList.add('is-active');
     const info = document.createElement('div');
     const heading = document.createElement('div'); heading.className = 'party-top';
     const name = document.createElement('span'); name.textContent = hero.name;
@@ -130,7 +123,18 @@ function render() {
     echo.disabled = state.resonance < 100 || !b.lastAction;
     const arts = document.querySelector('[data-command="arts"]'); arts.disabled = heroId === null || state.party[heroId].mp < 8;
   }
+  announce();
 }
+function selectHotspot(id, animate = false) {
+  if (!state || state.phase !== 'explore') return;
+  const old = state;
+  if (animate) window.dispatchEvent(new CustomEvent('lv:walk', { detail: { id, area: state.area } }));
+  state = interact(state, id);
+  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: state.records.length > old.records.length ? 'pickup' : 'select' } }));
+  render();
+  if (state.phase !== 'battle') void checkpoint();
+}
+window.addEventListener('lv:hotspot', event => selectHotspot(event.detail.id));
 function start() {
   state = newGame(settings.difficulty);
   beep(true); render(); void checkpoint();
@@ -153,7 +157,16 @@ $('btn-save').addEventListener('click', () => { void checkpoint(); });
 $('commands').addEventListener('click', event => {
   const command = event.target.closest('button[data-command]');
   if (!command || command.disabled || !state || state.phase !== 'battle') return;
-  state = battleAction(state, command.dataset.command); beep(true); render();
+  if (window.__lvAtbReady && !window.__lvAtbReady()) return;
+  const before = state;
+  state = battleAction(state, command.dataset.command);
+  window.dispatchEvent(new CustomEvent('lv:combat', { detail: {
+    command: command.dataset.command,
+    broke: !!state.battle?.stagger && !before.battle?.stagger,
+    won: before.phase === 'battle' && state.phase === 'explore',
+  } }));
+  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: state.phase === 'explore' ? 'victory' : command.dataset.command } }));
+  render();
   if (state.phase === 'explore') void checkpoint();
 });
 function modal(title, body) {
@@ -198,7 +211,7 @@ $('btn-settings').addEventListener('click', () => {
   const container = document.createElement('div');
   const description = document.createElement('p'); description.textContent = '演出・音量・戦闘難易度を調整できます。設定はこの端末に保持されます。'; container.append(description);
   const controls = [
-    { label: '効果音', id: 'setting-volume', type: 'range', min: 0, max: 1, step: .05, value: settings.volume },
+    { label: 'BGM・効果音の音量', id: 'setting-volume', type: 'range', min: 0, max: 1, step: .05, value: settings.volume },
     { label: '文字サイズ', id: 'setting-font', type: 'range', min: 1, max: 1.2, step: .1, value: settings.fontScale },
     { label: '演出を減らす', id: 'setting-reduce', type: 'checkbox', value: settings.reduceMotion },
   ];
@@ -231,7 +244,7 @@ document.addEventListener('keydown', event => {
     const command = $('commands').querySelectorAll('button')[Number(event.key) - 1];
     if (command && !command.disabled) { command.click(); event.preventDefault(); }
   }
-  if (state.phase === 'explore' && ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
+  if (state.phase === 'explore' && $('hotspots').contains(document.activeElement) && ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
     const buttons = [...$('hotspots').querySelectorAll('button')];
     if (!buttons.length) return;
     const current = buttons.indexOf(document.activeElement);
@@ -246,3 +259,4 @@ try {
 } catch (e) { notice(`保存領域を確認できません：${e.message}`, true); }
 persistSettings();
 render();
+document.documentElement.dataset.lumenReady = 'true';

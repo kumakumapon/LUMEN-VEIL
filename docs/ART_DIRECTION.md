@@ -15,3 +15,11 @@
 - 画像のサイズ・重複・透明領域・モバイル読み込み容量を検証し、アセットごとのWebP/PNG適性を判断する。
 
 すべて本企画向けに作成したオリジナルのコンセプト。既存ゲームのキャラクター・作品固有のUIや意匠を複製しない。
+
+## Phase 2 — Phaser/Vite artwork usage
+
+For the Phaser pass, a selection of generated LUMEN VEIL promotional boards was cropped into individual original portrait images (`portrait-noel.webp`, `portrait-sena.webp`, `portrait-ritz.webp`, `portrait-vald.webp`) and environment studies (`scene-harbor.webp`, `scene-corridor.webp`, `scene-vault.webp`, `scene-dock.webp`). Additional corridor, vault and dock images were extracted from the project's own generated sky-city/guardian art. These are original project assets, not FF sprites, franchise artwork or third-party music.
+
+The visuals are WebP compressed, with `public/assets/` used as the static file source. Canvas walking frames are synthesized at runtime by Phaser, so no unlicensed spritesheets are required. Some cropped scenery still has concept-art composition (and the boss reference may contain early HUD-like traces); all functional menus, dialogue, health bars and ATB are native DOM elements drawn independently.
+
+The Web Audio themes are short original note patterns written in `src/sound.ts` rather than downloaded recordings, preventing a third-party media dependency on GitHub Pages.

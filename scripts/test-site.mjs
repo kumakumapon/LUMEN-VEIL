@@ -1,0 +1,11 @@
+import { readFile, stat } from 'node:fs/promises';
+import { strict as assert } from 'node:assert';
+const content = await readFile('vite.config.ts', 'utf8');
+assert.match(content, /base:\s*'\/LUMEN-VEIL\/'/);
+const html = await readFile('index.html', 'utf8');
+assert.ok(html.includes('src="/src/main.ts"'));
+const model = await readFile('web/model.mjs', 'utf8');
+assert.ok(model.includes('export const SAVE_VERSION = 1'));
+await stat('public/assets/skyport.webp');
+await stat('public/assets/portrait-noel.webp');
+console.log('Source page base, entrypoint, save version and image assets validated');

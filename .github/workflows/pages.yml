@@ -17,12 +17,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install game dependencies
+        run: npm ci --no-audit --no-fund
       - name: Check game model
         run: npm test
       - name: Build relative-path site
         run: npm run build
       - name: Verify publish directory
-        run: test -f dist/index.html && test -f dist/assets/skyport.svg
+        run: node scripts/verify-pages.mjs
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
@@ -36,6 +38,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install game dependencies
+        run: npm ci --no-audit --no-fund
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -69,8 +73,6 @@ jobs:
       group: pages-deploy
       cancel-in-progress: false
     steps:
-      # Only the deploy job needs Pages API access. Keep tests independent
-      # of whether GitHub Pages has been enabled for the repository yet.
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Deploy site

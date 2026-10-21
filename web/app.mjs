@@ -64,8 +64,17 @@ function switchScreen(view) {
 }
 function text(id, value) { $(id).textContent = value; }
 function syncWorld() {
-  if (!world || !state || state.phase === 'ending') return;
-  world.sync(state, settings.reduceMotion);
+  if (!state || state.phase === 'ending') return;
+  if (!world) {
+    try {
+      // Phaser must boot in a visible parent; starting it while the title is
+      // shown makes Scale.FIT calculate a zero-sized canvas on some browsers.
+      world = new WorldStage($('world-stage'), id => performHotspot(id), () => soundtrack.sound('move'));
+    } catch (e) {
+      console.warn('Phaser renderer unavailable; standard game controls remain active.', e);
+    }
+  }
+  world?.sync(state, settings.reduceMotion);
 }
 function beginAtb() {
   if (state?.phase === 'battle') atb?.charge(activeHero(state) ?? 0);
@@ -281,11 +290,6 @@ document.addEventListener('keydown', event => {
 });
 // Initialize optional scene + gauge without replacing the pure legacy state.
 atb = new ActiveTimeGauge($('atb-meter'), $('atb-indicator'), commandAvailability);
-try {
-  world = new WorldStage($('world-stage'), id => performHotspot(id), () => soundtrack.sound('move'));
-} catch (e) {
-  console.warn('Phaser renderer unavailable; standard game controls remain active.', e);
-}
 try {
   const existing = await loadGame();
   saved = !!existing;

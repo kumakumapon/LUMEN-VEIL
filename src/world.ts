@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
+import { createTiles, TILE_COLUMNS, TILE_ROWS, TILE_MIN_Y, TILE_MAX_Y } from './tilemaps';
 
 type Point = { x: number; y: number };
 const SITES: Record<Area, Record<string, Point>> = {
@@ -30,6 +31,7 @@ export class WorldScene extends Phaser.Scene {
   private sceneKey = '';
   private bg: Phaser.GameObjects.Image | null = null;
   private avatars: Phaser.GameObjects.Sprite[] = [];
+  private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween}[] = [];
   private foe: Phaser.GameObjects.Container | null = null;
   private markerObjects: Phaser.GameObjects.GameObject[] = [];
   private sceneObjects: Phaser.GameObjects.GameObject[] = [];
@@ -43,10 +45,12 @@ export class WorldScene extends Phaser.Scene {
   private walkCallback: (event: Event) => void;
   private combatCallback: (event: Event) => void;
   private settingsCallback: (event: Event) => void;
+  private cancelCallback: () => void;
 
   constructor() {
     super({ key: 'World' });
     this.pointerCallback = pointer => this.pointAndWalk(pointer);
+    this.cancelCallback = () => { this.avatars.forEach(a=>this.tweens.killTweensOf(a));this.isWalking=false; };
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
     this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
@@ -55,6 +59,7 @@ export class WorldScene extends Phaser.Scene {
   preload(): void {
     const path = import.meta.env.BASE_URL + 'assets/';
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
+    for (const id of ['noel','sena','ritz']) this.load.image('face-'+id,path+'portrait-'+id+'.webp');
     // Rendering always has procedural fallback textures when an image cannot be loaded.
     this.load.on('loaderror', (file: { key: string }) => console.warn('Artwork fallback:', file.key));
   }
@@ -69,6 +74,7 @@ export class WorldScene extends Phaser.Scene {
     this.input.on('pointerdown', this.pointerCallback);
     this.scale.on('resize', this.relayout, this);
     window.addEventListener('lv:render', this.renderCallback);
+    window.addEventListener('lv:cancel-walk', this.cancelCallback);
     window.addEventListener('lv:walk', this.walkCallback);
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
@@ -79,6 +85,7 @@ export class WorldScene extends Phaser.Scene {
     window.dispatchEvent(new Event('lv:scene-ready'));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('lv:render', this.renderCallback);
+      window.removeEventListener('lv:cancel-walk', this.cancelCallback);
       window.removeEventListener('lv:walk', this.walkCallback);
       window.removeEventListener('lv:combat', this.combatCallback);
       window.removeEventListener('lv:settings', this.settingsCallback);
@@ -103,7 +110,19 @@ export class WorldScene extends Phaser.Scene {
       g.fillStyle = hero.coat; g.fillRect(9 + stride, 30, 8, 25); g.fillRect(36 - stride, 30, 8, 25);
       g.fillStyle = '#e8c5a5'; g.beginPath(); g.arc(26, 18, 11, 0, Math.PI * 2); g.fill();
       g.fillStyle = hero.hair; g.beginPath(); g.arc(26, 15, 12, Math.PI * 1.02, Math.PI * 1.96); g.lineTo(37, 15); g.lineTo(29, 6); g.lineTo(16, 13); g.closePath(); g.fill();
-      g.fillStyle = '#172a40'; g.fillRect(20, 19, 3, 2); g.fillRect(30, 19, 3, 2);
+      // High-detail face art from the existing original portraits; fall back to
+      // vector eyes when the image is unavailable or failed to load.
+      if (this.textures.exists('face-'+hero.id)) {
+        const face=this.textures.get('face-'+hero.id).getSourceImage() as HTMLImageElement;
+        if(face.width&&face.height){
+          g.save();g.beginPath();g.arc(26,19,12,0,Math.PI*2);g.clip();
+          const side=Math.min(face.width,face.height)*.65;
+          g.drawImage(face,Math.max(0,(face.width-side)*.45),Math.max(0,face.height*.10),side,side,13,6,26,26);
+          g.restore();g.strokeStyle='#ead3a4';g.lineWidth=1.8;g.beginPath();g.arc(26,19,12.5,0,Math.PI*2);g.stroke();
+        }
+      } else { g.fillStyle = '#172a40';g.fillRect(20,19,3,2);g.fillRect(30,19,3,2); }
+      g.fillStyle='#f2e3bb';g.fillRect(18,43,16,2);
+      g.fillStyle='#a3cbd2';g.fillRect(14+stride,49,4,5);g.fillRect(36-stride,49,4,5); g.fillRect(30, 19, 3, 2);
       g.strokeStyle = '#f3e2ad'; g.lineWidth = 1; g.strokeRect(10, 27, 32, 32);
       canvas.refresh();
     }
@@ -111,7 +130,7 @@ export class WorldScene extends Phaser.Scene {
   private relayout(): void { if (this.state) { this.sceneKey = ''; this.draw(); } }
   private wipe(): void {
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
-    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.bg = null; this.foe = null;
+    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
   }
   private track<T extends Phaser.GameObjects.GameObject>(obj: T): T { this.sceneObjects.push(obj); return obj; }
@@ -133,6 +152,7 @@ export class WorldScene extends Phaser.Scene {
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
+    this.drawTilemap(w,h,state.area);
     // Ambient cloud gradients, distant airship lights and a ground line add parallax depth.
     this.track(this.add.rectangle(w / 2, h * .84, w, h * .32, 0x061726, .23).setDepth(2));
     this.track(this.add.ellipse(w * .48, h * .77, w * .94, 18, 0xb3cad4, .24).setDepth(3));
@@ -147,6 +167,18 @@ export class WorldScene extends Phaser.Scene {
       this.drawExplore(w, h);
     }
   }
+  private drawTilemap(w:number,h:number,area:Area):void {
+    const grid=this.track(this.add.graphics().setDepth(1));
+    const colors=[0x7b95a3,0x789a83,0xb8a477,0x263847,0x477b94,0x8b7461];
+    const tw=w*.95/TILE_COLUMNS,th=h*(TILE_MAX_Y-TILE_MIN_Y)/TILE_ROWS;
+    for(const tile of createTiles(area)){
+      const x=w*(tile.x)-tw/2,y=h*(tile.y)-th/2;
+      grid.fillStyle(colors[tile.kind],tile.blocked?.38:.16);
+      grid.fillRect(x,y,tw-.6,th-.6);
+      if(tile.kind===2){grid.lineStyle(.7,0xf3dcaa,.32);grid.strokeRect(x+2,y+2,tw-4,th-4);}
+      if(tile.blocked){grid.lineStyle(1,0xd6b57b,.42);grid.strokeRect(x,y,tw-.5,th-.5);}
+    }
+  }
   private drawExplore(w: number, h: number): void {
     const s = this.state;
     if (!s) return;
@@ -157,6 +189,7 @@ export class WorldScene extends Phaser.Scene {
       const sprite = this.track(this.add.sprite(px * w, py * h, `${hero.id}-step-0`).setDepth(7-i).setOrigin(.5, 1).setScale(Math.max(.8, Math.min(1.42, w / 690))));
       return [sprite];
     });
+    this.drawNpcPatrols(w,h,s.area);
     for (const obstacle of OBSTACLES[s.area]) {
       this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
     }
@@ -171,6 +204,22 @@ export class WorldScene extends Phaser.Scene {
         event.stopPropagation(); this.walkTo({ id, area: s.area }, true);
       });
       if (!this.reducesMotion) this.tweens.add({targets: ring, scale: 1.19, alpha: .32, duration: 1150, yoyo:true, repeat:-1});
+    }
+  }
+  private drawNpcPatrols(w:number,h:number,area:Area):void {
+    const patterns:Record<Area,Array<{id:string;skin:string;color:number}>>={
+      harbor:[{id:'sena',skin:'sena',color:0xc6e5ed}],
+      corridor:[{id:'ritz',skin:'ritz',color:0xe8b48e}],
+      vault:[],dock:[],
+      market:[{id:'merchant',skin:'ritz',color:0xf6d49a},{id:'navigator',skin:'noel',color:0xb6d7ed}],
+      observatory:[{id:'scholar',skin:'sena',color:0xc5b6f6}],
+    };
+    for(const [i,npc] of patterns[area].entries()){
+      const pos=SITES[area][npc.id];if(!pos)continue;
+      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,npc.skin+'-step-0').setOrigin(.5,1).setScale(.64).setDepth(6).setTint(npc.color));
+      const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?27:-26),25,w-25);
+      const tween=this.tweens.add({targets:sprite,x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
+      this.npcActors.push({sprite,tween});
     }
   }
   private drawBattle(w: number, h: number): void {
@@ -257,6 +306,8 @@ export class WorldScene extends Phaser.Scene {
   }
   update(time:number,delta:number):void {
     if(!this.state || this.state.phase!=='explore' || this.isWalking || this.avatars.length===0) return;
+    const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
+    for(const npc of this.npcActors){if(pauseNpc)npc.tween.pause();else npc.tween.resume();}
     if(document.hidden || document.querySelector('dialog[open]'))return;
     const typing=document.activeElement;
     if(typing && (typing.tagName==='INPUT'||typing.tagName==='SELECT'||typing.tagName==='TEXTAREA'||(typing.tagName==='BUTTON' && !!typing.closest('#hotspots'))))return;

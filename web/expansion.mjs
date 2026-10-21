@@ -10,6 +10,10 @@ export const EQUIPMENT = Object.freeze({
   gearhammer: { name: '共鳴の槌', slot: 'weapon', power: 7, guard: 0, owners: ['ritz'] },
   cloth: { name: '旅装', slot: 'armor', power: 0, guard: 0, owners: HERO_IDS },
   aegis: { name: '白金の護符', slot: 'armor', power: 0, guard: 5, owners: HERO_IDS },
+  sunsteel: { name:'夜明けの細剣', slot:'weapon', power:12, guard:0, owners:['noel'] },
+  scribe: { name:'黎明の記録杖', slot:'weapon', power:11, guard:0, owners:['sena'] },
+  mechanic: { name:'白金の工具槌', slot:'weapon', power:11, guard:0, owners:['ritz'] },
+  ward: { name:'星灯の守り', slot:'armor', power:0, guard:8, owners:HERO_IDS },
 });
 const AREA_IDS = ['harbor', 'corridor', 'vault', 'dock', 'market', 'observatory'];
 const TREASURES = { 'market-cache': ['skyblade', 'gearhammer'], 'observatory-cache': ['archive', 'aegis'] };

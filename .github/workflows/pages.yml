@@ -18,10 +18,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install game dependencies
-        run: npm install --no-audit --no-fund
-      # Temporary reproducible-lock snapshot for migration; removed after committing lockfile.
-      - name: Emit dependency lockfile snapshot
-        run: node -e "console.log('LUMEN_LOCK_BEGIN'+require('fs').readFileSync('package-lock.json').toString('base64')+'LUMEN_LOCK_END')"
+        run: npm ci --no-audit --no-fund
       - name: Check game model
         run: npm test
       - name: Build relative-path site
@@ -42,7 +39,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install game dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

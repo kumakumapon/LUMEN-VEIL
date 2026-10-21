@@ -47,9 +47,11 @@ jobs:
         run: |
           python -m pip install playwright==1.55.0
           python -m playwright install --with-deps chromium
+      - name: Build production site for browser test
+        run: npm run build
       - name: Browser playthrough
         run: |
-          nohup npm run dev > /tmp/lumen-serve.log 2>&1 &
+          nohup npm run preview > /tmp/lumen-serve.log 2>&1 &
           sleep 2
           python tests/e2e.py
       - name: Upload browser screenshots
@@ -78,3 +80,4 @@ jobs:
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4
+

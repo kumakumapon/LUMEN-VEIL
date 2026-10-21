@@ -109,6 +109,8 @@ with sync_playwright() as p:
     explore(page, 'boss')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-enemy-art', 'illustrated')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-background', 'battle-arena')
+    expect(page.locator('.walking-guide')).to_be_hidden()
     page.screenshot(path=str(OUT / 'boss-illustrated-desktop.png'), full_page=True)
     finish_fight(page)
     explore(page, 'to-dock')

@@ -79,3 +79,11 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 .title-ensemble{position:absolute;right:-2%;top:12%;width:min(52vw,780px);height:auto;z-index:0;opacity:.9;pointer-events:none;mask-image:linear-gradient(90deg,transparent,#000 20%,#000 89%,transparent);filter:drop-shadow(0 15px 30px #05152577);border-radius:20px}
 @media(max-width:1080px){.title-ensemble{top:7%;right:-12%;opacity:.35;width:75vw}}
 @media(max-width:730px){.title-ensemble{display:none}}
+
+
+/* Combat keeps the illustration unobstructed; location text becomes a caption. */
+.in-combat .walking-guide,.in-combat .scene-copy .chapter-label,.in-combat .scene-copy p:last-child{display:none}
+.in-combat .scene-copy{bottom:16px;max-width:45%}
+.in-combat .scene-copy h2{font-size:clamp(15px,1.7vw,23px);letter-spacing:.1em;margin:0}
+.in-combat .landscape-overlay{background:linear-gradient(0deg,#0613218c,transparent 35%)}
+.in-combat .landscape{filter:none}

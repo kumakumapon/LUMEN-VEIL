@@ -64,6 +64,7 @@ export class WorldScene extends Phaser.Scene {
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
     for (const id of ['noel','sena','ritz']) this.load.image('face-'+id,path+'portrait-'+id+'.webp');
     for (const id of ['noel','sena','ritz','bell']) this.load.image('battle-'+id, path+'battle-'+id+'.webp');
+    this.load.image('battle-arena',path+'battle-arena.webp');
     // Rendering always has procedural fallback textures when an image cannot be loaded.
     this.load.on('loaderror', (file: { key: string }) => console.warn('Artwork fallback:', file.key));
   }
@@ -136,7 +137,7 @@ export class WorldScene extends Phaser.Scene {
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
     this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
-    delete this.game.canvas.dataset.battleArt; delete this.game.canvas.dataset.enemyArt;
+    delete this.game.canvas.dataset.battleArt; delete this.game.canvas.dataset.enemyArt; delete this.game.canvas.dataset.battleBackground;
   }
   private track<T extends Phaser.GameObjects.GameObject>(obj: T): T { this.sceneObjects.push(obj); return obj; }
   private cover(image: Phaser.GameObjects.Image, w: number, h: number): void {
@@ -150,14 +151,16 @@ export class WorldScene extends Phaser.Scene {
     const state = this.state;
     if (!state || state.phase === 'ending') return;
     const w = this.scale.width, h = this.scale.height;
-    const key = ASSET_NAMES[state.area];
+    const inBattle=state.phase==='battle'||state.phase==='defeat';
+    const key=inBattle&&this.textures.exists('battle-arena')?'battle-arena':ASSET_NAMES[state.area];
+    if(inBattle)this.game.canvas.dataset.battleBackground=key;
     if (this.textures.exists(key)) {
       const bg = this.track(this.add.image(w / 2, h / 2, key).setDepth(0).setAlpha(.87));
       this.cover(bg, w, h); this.bg = bg;
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
-    this.drawTilemap(w,h,state.area);
+    if(state.phase==='explore')this.drawTilemap(w,h,state.area);
     // Ambient cloud gradients, distant airship lights and a ground line add parallax depth.
     this.track(this.add.rectangle(w / 2, h * .84, w, h * .32, 0x061726, .23).setDepth(2));
     this.track(this.add.ellipse(w * .48, h * .77, w * .94, 18, 0xb3cad4, .24).setDepth(3));

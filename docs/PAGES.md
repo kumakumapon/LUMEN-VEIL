@@ -18,3 +18,11 @@
 - セーブのバージョンと構造を検証。壊れたJSONを読み込んでも既存データを消さない。
 - サーバー、アカウント、対戦、ランキング、課金、クラウド同期は初期実装外。
 - 初版は外部依存ゼロの静的探索・戦闘プロトタイプ。本格的なPhaser/TypeScript/Vite描画への移行は、基盤確認後の後続PRで対応する。
+
+## デプロイのトラブルシューティング
+
+- **テストが成功し、公開だけ失敗する場合**：Actions の「Test and publish LUMEN VEIL」で `test-build`、`e2e`、`deploy` の各ジョブを分けて確認する。ゲーム側のビルド成功と Pages 公開成功は別の状態。
+- **`Get Pages site failed` / `Resource not accessible by integration`**：まず `Settings → Pages → Build and deployment → Source: GitHub Actions` を設定したか確認する。非公開リポジトリでは Pages の利用資格と GITHUB_TOKEN の `pages` 権限も確認する。
+- **初回有効化**：ワークフローの `GITHUB_TOKEN` からPagesサイトを自動生成できるとは限らないため、リポジトリ管理者が GitHub UI で有効化する。PRの検証では公開処理を実行しない。
+- **設定変更後**：`Actions → Test and publish LUMEN VEIL → Run workflow` で `main` のワークフローを再実行し、`deploy` の成功と公開URLの動作を確認する。
+- `configure-pages` は公開用 `deploy` ジョブだけで行い、`pages: write` / `id-token: write` を付与する。Pagesが未設定でも `test-build` と `e2e` の実行結果は独立して得られる。

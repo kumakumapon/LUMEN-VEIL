@@ -30,11 +30,8 @@ jobs:
           test -f dist/index.html
           node -e 'const fs=require("node:fs");const h=fs.readFileSync("dist/index.html","utf8");if(!h.includes("/LUMEN-VEIL/assets/")||h.includes("src=\"/assets/"))process.exit(1)'
           test $(find dist/assets -type f | wc -l) -gt 5
-      - name: Setup Pages
-        if: github.event_name != 'pull_request'
-        uses: actions/configure-pages@v5
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -70,7 +67,7 @@ jobs:
           path: screenshots/
           if-no-files-found: ignore
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [test-build, e2e]
     runs-on: ubuntu-latest
     permissions:
@@ -83,6 +80,10 @@ jobs:
       group: pages-deploy
       cancel-in-progress: false
     steps:
+      # Only the deploy job needs Pages API access. Keep tests independent
+      # of whether GitHub Pages has been enabled for the repository yet.
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
       - name: Deploy site
         id: deployment
         uses: actions/deploy-pages@v4

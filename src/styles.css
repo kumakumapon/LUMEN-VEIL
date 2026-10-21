@@ -121,3 +121,5 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
  .field-target{font-size:11px}
  .explore-mode .walking-guide{display:block;left:14px;right:14px;top:12px;font-size:9px}
 }
+
+.game-screen:not(.explore-mode) .field-actions{display:none}

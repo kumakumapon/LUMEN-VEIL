@@ -39,7 +39,7 @@ function persistSettings() {
   document.body.classList.toggle('reduce-motion', settings.reduceMotion);
   if (state) state.difficulty = settings.difficulty;
   soundtrack.setVolume(settings.volume);
-  world?.sync(state, settings.reduceMotion);
+  if (state) world?.sync(state, settings.reduceMotion);
 }
 async function checkpoint() {
   if (!state) return;

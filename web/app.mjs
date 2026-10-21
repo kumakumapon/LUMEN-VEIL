@@ -259,3 +259,4 @@ try {
 } catch (e) { notice(`保存領域を確認できません：${e.message}`, true); }
 persistSettings();
 render();
+document.documentElement.dataset.lumenReady = 'true';

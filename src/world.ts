@@ -66,7 +66,9 @@ export class WorldScene extends Phaser.Scene {
     window.addEventListener('lv:walk', this.walkCallback);
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
-    const last = (window as Window & { __lvLatestState?: GameView | null }).__lvLatestState;
+    const globals = window as Window & { __lvLatestState?: GameView | null; __lvSettings?: { reduceMotion: boolean } };
+    this.reducesMotion = !!globals.__lvSettings?.reduceMotion;
+    const last = globals.__lvLatestState;
     if (last) this.sync(last);
     window.dispatchEvent(new Event('lv:scene-ready'));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

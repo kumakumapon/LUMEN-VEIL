@@ -31,6 +31,7 @@ with sync_playwright() as p:
     failures = []
     page.on('pageerror', lambda exc: failures.append(str(exc)))
     page.goto(ROOT, wait_until='domcontentloaded')
+    page.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
     expect(page.locator('#hero-title')).to_be_visible()
     page.screenshot(path=str(OUT / 'title-desktop.png'), full_page=True)
     page.locator('#btn-start').click()
@@ -75,6 +76,7 @@ with sync_playwright() as p:
     mobile = browser.new_page(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
     mobile.on('pageerror', lambda exc: failures.append(str(exc)))
     mobile.goto(ROOT)
+    mobile.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
     expect(mobile.locator('#hero-title')).to_be_visible()
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     mobile.screenshot(path=str(OUT / 'title-mobile.png'), full_page=True)
@@ -99,6 +101,7 @@ with sync_playwright() as p:
     legacy = browser.new_page()
     legacy.on('pageerror', lambda exc: failures.append(str(exc)))
     legacy.goto(ROOT, wait_until='domcontentloaded')
+    legacy.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
     legacy.evaluate("""async data => {
       const db = await new Promise((resolve, reject) => {
         const req = indexedDB.open('lumen-veil-save-v1', 1);

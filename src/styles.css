@@ -47,3 +47,17 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 .party-member .party-top{font-size:12px}
 @media(max-width:730px){.walking-guide{top:52px;right:16px;font-size:9px}.scene-copy{bottom:22px}.landscape-overlay{background:linear-gradient(0deg,#061321de,transparent 58%)}}
 @media(max-width:420px){.walking-guide{display:none}.atb-row>span{letter-spacing:.06em}}
+/* Phase 3: side areas, conversations and equipment */
+.landscape.area-market{background-image:linear-gradient(90deg,#2d251599,#152a3655),url('/assets/scene-harbor.webp');background-position:38% 65%}
+.landscape.area-observatory{background-image:linear-gradient(90deg,#121c3f99,#17264b66),url('/assets/scene-corridor.webp');background-position:72% 30%}
+.conversation{display:grid;gap:16px;max-width:570px;min-height:160px}
+.conversation h3{margin:0;color:#d6c49e;letter-spacing:.1em;font-size:17px}
+.conversation p{font-size:15px;line-height:2;min-height:75px;margin:0}
+.conversation button{justify-self:end;min-width:145px}
+.gear-menu{display:grid;gap:16px;min-width:min(560px,75vw)}
+.gear-row{border:1px solid #8bb6c84a;border-radius:8px;padding:12px 14px;background:#071d2d88;display:grid;gap:9px}
+.gear-row h3{font-size:14px;margin:0;color:#e5d9bb}
+.gear-row label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px}
+.gear-row select{background:#0e2c42;color:#f1f4f2;border:1px solid #7fbac788;border-radius:5px;max-width:75%;min-height:38px;padding:6px}
+#btn-gear{white-space:nowrap}
+@media(max-width:530px){.gear-menu{min-width:0}.gear-row label{align-items:flex-start;flex-direction:column}.gear-row select{max-width:100%;width:100%}.conversation{min-height:200px}}

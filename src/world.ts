@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { Area, GameEvent, GameView, Command } from './types';
+import { OBSTACLES, routeTo, walkable } from './navigation';
 
 type Point = { x: number; y: number };
 const SITES: Record<Area, Record<string, Point>> = {
@@ -7,12 +8,15 @@ const SITES: Record<Area, Record<string, Point>> = {
   corridor: { ritz: { x: .75, y: .55 }, lamp: { x: .45, y: .46 }, badge: { x: .29, y: .66 }, key: { x: .56, y: .69 }, 'to-vault': { x: .90, y: .48 }, 'to-harbor': { x: .14, y: .60 } },
   vault: { boss: { x: .41, y: .47 }, 'to-dock': { x: .84, y: .61 }, 'to-corridor': { x: .13, y: .61 } },
   dock: { escape: { x: .80, y: .53 }, 'to-vault': { x: .17, y: .57 } },
+  market: { merchant: { x: .69, y: .50 }, navigator: { x: .28, y: .48 }, 'market-cache': { x: .77, y: .73 }, 'to-harbor': { x: .13, y: .74 } },
+  observatory: { scholar: { x: .67, y: .48 }, 'observatory-cache': { x: .34, y: .72 }, 'to-harbor': { x: .14, y: .64 } },
 };
-const ASSET_NAMES: Record<Area, string> = { harbor: 'scene-harbor', corridor: 'scene-corridor', vault: 'vault', dock: 'scene-dock' };
+const ASSET_NAMES: Record<Area, string> = { harbor: 'scene-harbor', corridor: 'scene-corridor', vault: 'vault', dock: 'scene-dock', market: 'scene-harbor', observatory: 'scene-corridor' };
 const LABELS: Record<string, string> = {
   sena: 'セナ', sign: '記憶灯', letter: '手紙', 'to-corridor': '整備区画',
   ritz: 'リッツ', lamp: '修復', badge: '名札', key: '鍵', 'to-vault': '保管庫',
   boss: '忘鐘', 'to-dock': '船着き場', 'to-harbor': '港', escape: '飛空艇',
+  'to-market': '市場', 'to-observatory': '観測塔', merchant: '商人ユイ', navigator: '航路士', scholar: '星見のエル', 'market-cache': '装備箱', 'observatory-cache': '星図の箱',
 };
 const HEROES = [
   { id: 'noel', coat: '#e1d9ce', trim: '#344f6d', hair: '#283346' },
@@ -30,6 +34,7 @@ export class WorldScene extends Phaser.Scene {
   private markerObjects: Phaser.GameObjects.GameObject[] = [];
   private sceneObjects: Phaser.GameObjects.GameObject[] = [];
   private keys: Phaser.Input.Keyboard.Key[] = [];
+  private interactKey: Phaser.Input.Keyboard.Key | null = null;
   private isWalking = false;
   private reducesMotion = false;
   private lastFootstep = 0;
@@ -60,6 +65,7 @@ export class WorldScene extends Phaser.Scene {
       const key = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes[k as keyof typeof Phaser.Input.Keyboard.KeyCodes], false);
       if (key) this.keys.push(key);
     }
+    this.interactKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.E, false) ?? null;
     this.input.on('pointerdown', this.pointerCallback);
     this.scale.on('resize', this.relayout, this);
     window.addEventListener('lv:render', this.renderCallback);
@@ -151,6 +157,9 @@ export class WorldScene extends Phaser.Scene {
       const sprite = this.track(this.add.sprite(px * w, py * h, `${hero.id}-step-0`).setDepth(7-i).setOrigin(.5, 1).setScale(Math.max(.8, Math.min(1.42, w / 690))));
       return [sprite];
     });
+    for (const obstacle of OBSTACLES[s.area]) {
+      this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
+    }
     for (const [id, coords] of Object.entries(SITES[s.area])) {
       const x = Math.min(w-26, Math.max(26, coords.x * w)), y = Math.min(h-35, Math.max(52, coords.y * h));
       const ring = this.add.circle(x, y, w < 500 ? 13 : 19, 0x75cecd, .14).setStrokeStyle(1.7, 0xece9c6, .85).setDepth(4);
@@ -209,17 +218,29 @@ export class WorldScene extends Phaser.Scene {
     else this.animateWalk(Phaser.Math.Clamp(x,20,w-20),Phaser.Math.Clamp(y,h*.39,h*.82));
   }
   private animateWalk(x:number,y:number,onArrive?:()=>void):void {
-    const lead=this.avatars[0];if(!lead)return;
+    const lead=this.avatars[0];
+    if(!lead||!this.state)return;
+    const w=this.scale.width,h=this.scale.height;
+    const area=this.state.area;
+    const route=routeTo(area,{x:lead.x/w,y:lead.y/h},{x:x/w,y:y/h});
+    if(!route.length)return;
     this.tweens.killTweensOf(lead);
-    const duration=this.reducesMotion?50:Math.min(1050,Math.max(190,Phaser.Math.Distance.Between(lead.x,lead.y,x,y)*2.6));
     this.isWalking=true;
-    this.tweens.add({targets:lead,x,y,duration,ease:'Sine.easeInOut',onComplete:()=>{this.isWalking=false;lead.setTexture('noel-step-0');onArrive?.();}});
-    if(!this.reducesMotion){
-      this.avatars.slice(1).forEach((sprite,i)=>{
-        this.tweens.killTweensOf(sprite);
-        this.tweens.add({targets:sprite,x:x-43+(i*82),y:y+15,duration:duration+100,delay:80+i*50,ease:'Sine.easeInOut'});
-      });
-    }
+    const move=(index:number):void=>{
+      if(!this.state||this.state.phase!=='explore'||this.state.area!==area){this.isWalking=false;return;}
+      if(index>=route.length){this.isWalking=false;lead.setTexture('noel-step-0');onArrive?.();return;}
+      const point=route[index], px=point.x*w,py=point.y*h;
+      const distance=Phaser.Math.Distance.Between(lead.x,lead.y,px,py);
+      const duration=this.reducesMotion?25:Math.max(30,distance*3.3);
+      this.tweens.add({targets:lead,x:px,y:py,duration,ease:'Linear',onUpdate:()=>{
+        if(!this.reducesMotion)lead.setTexture(`noel-step-${Math.floor(this.time.now/110)%4}`);
+        this.avatars.slice(1).forEach((sprite,i)=>{
+          sprite.x=Phaser.Math.Linear(sprite.x,lead.x-45+i*78,.13);
+          sprite.y=Phaser.Math.Linear(sprite.y,lead.y+11,.13);
+        });
+      },onComplete:()=>move(index+1)});
+    };
+    move(0);
   }
   private combatEffect({command,broke,won}:{command:Command;broke:boolean;won:boolean}):void {
     if(!this.state || (this.state.phase!=='battle'&&this.state.phase!=='explore'))return;
@@ -246,10 +267,17 @@ export class WorldScene extends Phaser.Scene {
     if(pressed('UP')||pressed('W'))vy--;
     if(pressed('DOWN')||pressed('S'))vy++;
     const lead=this.avatars[0];
+    if(this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
+      const closest=Object.entries(SITES[this.state.area]).map(([id,p])=>({id,d:Math.hypot((p.x*this.scale.width-lead.x)/this.scale.width,(p.y*this.scale.height-lead.y)/this.scale.height)})).sort((a,b)=>a.d-b.d)[0];
+      if(closest && closest.d<.105){window.dispatchEvent(new CustomEvent('lv:hotspot',{detail:{id:closest.id}}));return;}
+    }
     if(vx||vy){
       const m=Math.hypot(vx,vy);const speed=.23*delta;
-      lead.x=Phaser.Math.Clamp(lead.x+vx/m*speed,18,this.scale.width-18);
-      lead.y=Phaser.Math.Clamp(lead.y+vy/m*speed,this.scale.height*.35,this.scale.height*.82);
+      const nx=Phaser.Math.Clamp(lead.x+vx/m*speed,18,this.scale.width-18);
+      const ny=Phaser.Math.Clamp(lead.y+vy/m*speed,this.scale.height*.35,this.scale.height*.82);
+      if(walkable(this.state.area,nx/this.scale.width,ny/this.scale.height)){lead.x=nx;lead.y=ny;}
+      else if(walkable(this.state.area,nx/this.scale.width,lead.y/this.scale.height))lead.x=nx;
+      else if(walkable(this.state.area,lead.x/this.scale.width,ny/this.scale.height))lead.y=ny;
       lead.setTexture(`noel-step-${Math.floor(time/110)%4}`);
       for(const [i,s] of this.avatars.slice(1).entries()){
         s.x=Phaser.Math.Linear(s.x,lead.x-45+i*78,.07);

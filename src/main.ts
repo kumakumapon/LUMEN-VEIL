@@ -50,7 +50,7 @@ function startRenderer(): void {
     try {
       const parent = document.getElementById('phaser-stage');
       if (parent) new Phaser.Game({
-        type: Phaser.AUTO,
+        type: Phaser.CANVAS,
         parent,
         width: 960,
         height: 420,

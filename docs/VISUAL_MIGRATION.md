@@ -23,7 +23,7 @@ index.html (Vite entry)
             └─ web/save.mjs   → IndexedDB save/JSON import (unchanged)
 ```
 
-Communication is via local `CustomEvent` messages (`lv:render`, `lv:walk`, `lv:hotspot`, `lv:combat`, `lv:settings`, `lv:sfx`). Phaser is not a persistence dependency; users can interact using the DOM controls if Canvas is blocked.
+Communication is via local `CustomEvent` messages (`lv:render`, `lv:walk`, `lv:hotspot`, `lv:combat`, `lv:settings`, `lv:sfx`). The Canvas renderer is explicitly selected to avoid WebGL framebuffer incompatibilities in headless/mobile browsers. Phaser is not a persistence dependency; users can interact using the DOM controls if Canvas is blocked.
 
 ## Gameplay
 

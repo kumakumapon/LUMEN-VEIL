@@ -1,5 +1,6 @@
 // Pure, deterministic game state. No DOM or storage APIs here.
-import { enemyIntent, statsFor } from './expansion.mjs';
+import { statsFor } from './expansion.mjs';
+import { tacticalIntent } from './living.mjs';
 export const SAVE_VERSION = 1;
 export const PARTY = [
   { id: 'noel', name: 'ノエル', role: '運び屋 / 剣', maxHp: 180, maxMp: 48, power: 24, art: '黎明斬' },
@@ -185,12 +186,12 @@ export function battleAction(state, command, progress = null) {
       b.stagger = false;
       b.break = b.maxBreak;
     } else {
-      const plan = enemyIntent(s);
+      const plan = tacticalIntent(s);
       if (!plan) { b.log = text; return s; }
       const victim = plan.target;
       const target = s.party[victim];
       let hit = plan.damage;
-      if (progress) hit = Math.max(1, hit - statsFor(progress, target.id).guard);
+      if (progress) hit = Math.max(1, hit - Math.floor(statsFor(progress, target.id).guard * (plan.piercing ? .3 : 1)));
       if (b.guard.includes(victim)) { hit = Math.floor(hit / 2); b.guard = b.guard.filter(x => x !== victim); }
       target.hp = Math.max(0, target.hp - hit);
       text += ` 敵の戦術：${plan.name}。`;

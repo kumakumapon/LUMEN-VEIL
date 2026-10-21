@@ -1,8 +1,9 @@
 import { parseSave, snapshot } from './model.mjs';
 import { freshProgress, parseProgress } from './expansion.mjs';
+import { freshLiving, parseLiving } from './living.mjs';
 // The existing IndexedDB database and store are unchanged; only a second key is added.
 const DB_NAME = 'lumen-veil-save-v1', STORE = 'slots';
-const SAVE_KEY = 'chapter-zero', EXPANSION_KEY = 'chapter-zero-expansion';
+const SAVE_KEY = 'chapter-zero', EXPANSION_KEY = 'chapter-zero-expansion', LIVING_KEY = 'chapter-zero-living';
 async function openDB() {
   return new Promise((resolve, reject) => {
     if (!('indexedDB' in globalThis)) { reject(Error('IndexedDBが利用できません。')); return; }
@@ -35,18 +36,20 @@ export async function loadProgress() {
     request.onerror = () => reject(request.error ?? Error('育成データを読めません。'));
   });
 }
-export function exportAdventure(state, progress) {
-  return JSON.stringify({ ...JSON.parse(snapshot(state)), expansion: parseProgress(progress) });
+export function exportAdventure(state, progress, living = freshLiving()) {
+  return JSON.stringify({ ...JSON.parse(snapshot(state)), expansion: parseProgress(progress), living: parseLiving(living) });
 }
 export async function importAdventure(text) {
   if (typeof text !== 'string' || text.length > 200000) throw Error('ファイルが大きすぎます。');
   // Validate both components before starting the write transaction.
   const state = parseSave(text), raw = JSON.parse(text);
   const progress = raw.expansion === undefined ? freshProgress() : parseProgress(raw.expansion);
+  const living = raw.living === undefined ? freshLiving() : parseLiving(raw.living);
   await transact('readwrite', (store, resolve) => {
     store.put(snapshot(state), SAVE_KEY);
     store.put(JSON.stringify(progress), EXPANSION_KEY);
+    store.put(JSON.stringify(living), LIVING_KEY);
     store.transaction.oncomplete = () => resolve();
   });
-  return { state, progress };
+  return { state, progress, living };
 }

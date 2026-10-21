@@ -40,8 +40,18 @@ with sync_playwright() as p:
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
     # Optional exploration, multi-line NPC conversations, equipment and XP sidecar.
+    page.locator('#btn-quests').click()
+    expect(page.locator('#modal-title')).to_have_text('依頼の記録')
+    page.locator('[data-quest-action="letter"]').click()
+    expect(page.locator('[data-quest-action="letter"]')).to_have_text('進行中')
+    page.locator('#btn-close').click()
     explore(page, 'to-market')
     expect(page.locator('#area-title')).to_have_text('白帆の市場')
+    page.locator('#btn-shop').click()
+    expect(page.locator('#modal-title')).to_have_text('白帆の市場 — 装備店')
+    page.locator('[data-buy-item="sunsteel"]').click()
+    expect(page.locator('[data-buy-item="sunsteel"]')).to_have_text('購入済み')
+    page.locator('#btn-close').click()
     explore(page, 'merchant')
     expect(page.locator('#modal-title')).to_have_text('会話')
     expect(page.locator('.conversation h3')).to_have_text('商人ユイ')
@@ -67,7 +77,15 @@ with sync_playwright() as p:
     explore(page, 'sena')
     explore(page, 'sign')
     explore(page, 'letter')
+    page.locator('#btn-quests').click()
+    expect(page.locator('[data-quest-action="letter"]')).to_have_text('報酬を受け取る')
+    page.locator('[data-quest-action="letter"]').click()
+    expect(page.locator('[data-quest-action="letter"]')).to_have_text('達成済み')
+    page.locator('#btn-close').click()
     explore(page, 'to-corridor')
+    expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
+    # Prevent a stale Phaser walk callback from undoing a fast DOM area transition.
+    page.wait_for_timeout(400)
     expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
     # Reload to verify IndexedDB writes and resume work.
     expect(page.locator('#notice')).to_contain_text('記憶を保存しました。')

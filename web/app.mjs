@@ -2,9 +2,12 @@ import { AREAS, HOTSPOTS, PARTY, objective, newGame, interact, activeHero, battl
 import { saveGame, loadGame } from './save.mjs';
 import { EQUIPMENT, NPC_DIALOGUES, enemyIntent, equipItem, findTreasure, freshProgress, grantVictory, levelForXp, statsFor, visit } from './expansion.mjs';
 import { saveProgress, loadProgress, importAdventure, exportAdventure } from './expansion-save.mjs';
+import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyItem, tacticalIntent } from './living.mjs';
+import { saveLiving, loadLiving } from './living-save.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
 let progress = freshProgress();
+let living = freshLiving();
 let saved = false;
 let saveQueue = Promise.resolve();
 let settings = { volume: .28, reduceMotion: false, fontScale: 1, difficulty: 'normal' };
@@ -37,8 +40,8 @@ async function checkpoint() {
   if (!state) return;
   const current = state;
   try {
-    const currentProgress = progress;
-    saveQueue = saveQueue.catch(() => {}).then(async () => { await saveGame(current); await saveProgress(currentProgress); });
+    const currentProgress = progress, currentLiving=living;
+    saveQueue = saveQueue.catch(() => {}).then(async () => { await saveGame(current); await saveProgress(currentProgress); await saveLiving(currentLiving); });
     await saveQueue; saved = true; notice('記憶を保存しました。');
   }
   catch (e) { notice(`保存できません：${e?.message || '不明なエラー'}`, true); }
@@ -48,6 +51,9 @@ function renderButtons() {
   $('btn-save').disabled = !state;
   $('btn-journal').disabled = !state;
   $('btn-gear').disabled = !state;
+  $('btn-quests').disabled = !state;
+  $('btn-shop').disabled = !state || state.area !== 'market' || state.phase !== 'explore';
+  $('gold-count').textContent = state ? `${living.gold} G` : ''; 
   $('btn-load').disabled = !saved;
   $('btn-title-continue').disabled = !saved;
 }
@@ -89,7 +95,9 @@ function render() {
     const title = document.createElement('strong'); title.textContent = h.label;
     const detail = document.createElement('small'); detail.textContent = h.caption;
     content.append(title, detail); button.append(symbol, content); hotspots.append(button);
-    button.addEventListener('click', () => selectHotspot(h.id, true));
+    // DOM shortcuts act immediately. Cancel any previous Phaser walk callback so
+    // a stale marker cannot send the player back to a prior area.
+    button.addEventListener('click', () => selectHotspot(h.id));
   }
   const party = $('party'); party.replaceChildren();
   for (const [i, hero] of state.party.entries()) {
@@ -122,7 +130,8 @@ function render() {
     $('foe-hp').max = b.maxHp; $('foe-hp').value = b.hp;
     $('foe-break').max = b.maxBreak; $('foe-break').value = b.break;
     const plan = enemyIntent({ ...state, battle: { ...b, count: b.count + (b.count % 2 === 0 ? 2 : 1) } });
-    text('foe-intent', b.stagger ? 'BREAK! 敵の次の行動を妨害できる。' : plan ? `敵AI予告：${plan.name} → ${state.party[plan.target].name}` : '敵の行動を観察する');
+    const tactics=tacticalIntent(state,progress);
+    text('foe-intent', b.stagger ? 'BREAK! 敵の次の行動を妨害できる。' : tactics ? `敵AI予告：${tactics.name} → ${state.party[tactics.target].name}${tactics.piercing?'（防御貫通）':''}` : '敵の行動を観察する');
     const heroId = activeHero(state);
     text('active-hero', heroId === null ? '操作できる仲間がいない。' : `${state.party[heroId].name} のターン  /  WAIT`);
     const echo = document.querySelector('[data-command="echo"]');
@@ -131,10 +140,11 @@ function render() {
   }
   announce();
 }
-function selectHotspot(id, animate = false) {
+function selectHotspot(id) {
   if (!state || state.phase !== 'explore') return;
+  // Cancel any in-flight movement before changing the scene or quest state.
+  window.dispatchEvent(new Event('lv:cancel-walk'));
   const old = state;
-  if (animate) window.dispatchEvent(new CustomEvent('lv:walk', { detail: { id, area: state.area } }));
   state = interact(state, id);
   if (state.area !== old.area) progress = visit(progress, state.area);
   if (id === 'market-cache' || id === 'observatory-cache') progress = findTreasure(progress, id);
@@ -148,6 +158,7 @@ window.addEventListener('lv:hotspot', event => selectHotspot(event.detail.id));
 function start() {
   state = newGame(settings.difficulty);
   progress = visit(freshProgress(), 'harbor');
+  living = freshLiving();
   beep(true); render(); void checkpoint();
 }
 async function resume() {
@@ -155,7 +166,8 @@ async function resume() {
     const result = await loadGame();
     if (!result) { notice('再開できる記録がありません。', true); return; }
     const loadedProgress = await loadProgress();
-    state = result; progress = loadedProgress; settings.difficulty = state.difficulty;
+    const loadedLiving=await loadLiving();
+    state = result; progress = loadedProgress; living=loadedLiving; settings.difficulty = state.difficulty;
     persistSettings(); beep(true); render(); notice('保存された記憶を読み込みました。');
   } catch (e) { notice(`読み込めません：${e?.message || '不明なエラー'}`, true); }
 }
@@ -186,17 +198,20 @@ function showConversation(lines) {
   const container = document.createElement('div'); container.className = 'conversation';
   let index = 0;
   const speaker = document.createElement('h3'), line = document.createElement('p');
+  const portrait=document.createElement('img');portrait.className='dialogue-portrait';portrait.alt='';portrait.loading='lazy';
   const next = document.createElement('button'); next.type = 'button'; next.className = 'primary-btn';
   const update = () => {
     speaker.textContent = lines[index].speaker;
     line.textContent = lines[index].line;
+    const skin=lines[index].speaker.includes('セナ')?'sena':lines[index].speaker.includes('リッツ')?'ritz':lines[index].speaker.includes('ノエル')?'noel':'vald';
+    portrait.src=`${import.meta.env.BASE_URL}assets/portrait-${skin}.webp`;
     next.textContent = index === lines.length - 1 ? '会話を終える' : '次へ ▶';
   };
   next.addEventListener('click', () => {
     if (index + 1 >= lines.length) { $('overlay').close(); return; }
     index++; update(); beep();
   });
-  container.append(speaker, line, next); update(); modal('会話', container);
+  container.append(portrait,speaker, line, next); update(); modal('会話', container);
 }
 function openGear() {
   if (!state) return;
@@ -230,6 +245,57 @@ const gearButton = document.createElement('button');
 gearButton.id = 'btn-gear'; gearButton.type = 'button'; gearButton.textContent = '装備・育成'; gearButton.disabled = true;
 $('btn-journal').insertAdjacentElement('afterend', gearButton);
 gearButton.addEventListener('click', openGear);
+const questButton=document.createElement('button');questButton.id='btn-quests';questButton.type='button';questButton.textContent='依頼';questButton.disabled=true;
+gearButton.insertAdjacentElement('afterend',questButton);
+const shopButton=document.createElement('button');shopButton.id='btn-shop';shopButton.type='button';shopButton.textContent='ショップ';shopButton.disabled=true;
+questButton.insertAdjacentElement('afterend',shopButton);
+const gold=document.createElement('span');gold.id='gold-count';gold.className='gold-count';shopButton.insertAdjacentElement('afterend',gold);
+function openQuests(){
+  if(!state)return;
+  const panel=document.createElement('div');panel.className='quest-menu';
+  const intro=document.createElement('p');intro.textContent='依頼を受け、探索や戦闘で条件を満たしたら報酬を受け取れます。';panel.append(intro);
+  for(const [id,quest] of Object.entries(QUESTS)){
+    const status=questStatus(living,id,state,progress);
+    const row=document.createElement('section');row.className='quest-row';row.dataset.quest=id;
+    const title=document.createElement('h3');title.textContent=quest.title;
+    const description=document.createElement('p');description.textContent=quest.description;
+    const reward=document.createElement('small');reward.textContent=`報酬：${quest.gold} G / 経験値 ${quest.xp}`;
+    const button=document.createElement('button');button.type='button';button.dataset.questAction=id;
+    button.textContent=status==='available'?'依頼を受ける':status==='ready'?'報酬を受け取る':status==='claimed'?'達成済み':'進行中';
+    button.disabled=status==='active'||status==='claimed';
+    button.addEventListener('click',()=>{
+      try{
+        if(status==='available')living=acceptQuest(living,id);
+        else if(status==='ready')({living,progress}=claimQuest(living,id,state,progress));
+        render();void checkpoint();openQuests();
+      }catch(error){notice(error.message,true);}
+    });
+    row.append(title,description,reward,button);panel.append(row);
+  }
+  modal('依頼の記録',panel);
+}
+function openShop(){
+  if(!state||state.area!=='market'||state.phase!=='explore')return;
+  const panel=document.createElement('div');panel.className='shop-menu';
+  const intro=document.createElement('p');intro.textContent=`商人ユイ「旅の支度をしましょう！」 所持金：${living.gold} G`;panel.append(intro);
+  for(const [id,item] of Object.entries(SHOP)){
+    const row=document.createElement('section');row.className='shop-row';row.dataset.shopItem=id;
+    const label=document.createElement('div');label.textContent=`${item.name} — ${item.price} G`;
+    const caption=document.createElement('small');caption.textContent=item.description;
+    const button=document.createElement('button');button.type='button';button.dataset.buyItem=id;
+    const owned=progress.found.includes(id);
+    button.textContent=owned?'購入済み':'購入する';button.disabled=owned||living.gold<item.price;
+    button.addEventListener('click',()=>{
+      try{({living,progress}=buyItem(living,progress,id));render();void checkpoint();openShop();}
+      catch(error){notice(error.message,true);}
+    });
+    row.append(label,caption,button);panel.append(row);
+  }
+  modal('白帆の市場 — 装備店',panel);
+}
+questButton.addEventListener('click',openQuests);
+shopButton.addEventListener('click',openShop);
+
 function modal(title, body) {
   text('modal-title', title); $('modal-content').replaceChildren(); $('modal-content').append(body);
   if (!$('overlay').open) $('overlay').showModal();
@@ -247,7 +313,7 @@ $('btn-journal').addEventListener('click', () => {
   const actions = document.createElement('div'); actions.className = 'modal-actions';
   const exportButton = document.createElement('button'); exportButton.textContent = 'セーブJSONを書き出す';
   exportButton.addEventListener('click', () => {
-    const blob = new Blob([exportAdventure(state, progress)], { type: 'application/json' });
+    const blob = new Blob([exportAdventure(state, progress, living)], { type: 'application/json' });
     const url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = 'lumen-veil-adventure-v1.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); notice('セーブデータを書き出しました。');
   });
@@ -264,7 +330,7 @@ $('import-file').addEventListener('change', async event => {
   if (file.size > 200_000) { notice('ファイルが大きすぎます。', true); return; }
   try {
     const imported = await importAdventure(await file.text());
-    state = imported.state; progress = imported.progress; saved = true; settings.difficulty = state.difficulty;
+    state = imported.state; progress = imported.progress; living=imported.living; saved = true; settings.difficulty = state.difficulty;
     persistSettings(); $('overlay').close(); render(); notice('保存された記憶を取り込みました。');
   } catch (e) { notice(`インポートに失敗：${e?.message || '不正なデータ'}`, true); }
 });

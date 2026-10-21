@@ -4,7 +4,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
 ROOT = os.environ.get('SITE_URL', 'http://127.0.0.1:4173/LUMEN-VEIL/')
-OUT = Path(os.environ.get('SCREENSHOT_DIR', '/mnt/data/lumen-veil-working/screenshots'))
+OUT = Path(os.environ.get('SCREENSHOT_DIR', str(Path.cwd() / 'screenshots')))
 OUT.mkdir(exist_ok=True, parents=True)
 
 def explore(page, id):

@@ -23,3 +23,7 @@ npm run preview
 - 上部メニュー：保存、続きから、記録、設定、セーブJSON書出し/読込み。
 
 `docs/DESIGN.md` にシナリオ・最終仕様、`docs/PAGES.md` に公開手順。GitHub Pagesではサーバー不要で動作し、保存はIndexedDBへ行う。Pages自体の有効化は管理者による設定が必要。
+
+### コンセプトアート
+
+生成した空中都市のキービジュアルを、軽量なWebP背景として画面に組み込んでいます。忘鐘のコンセプト画像と配色・UI方針は [`docs/ART_DIRECTION.md`](docs/ART_DIRECTION.md) を参照してください。

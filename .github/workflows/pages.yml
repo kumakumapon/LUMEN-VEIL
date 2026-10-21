@@ -51,6 +51,13 @@ jobs:
           nohup npm run dev > /tmp/lumen-serve.log 2>&1 &
           sleep 2
           python tests/e2e.py
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chapter-zero-browser-shots
+          path: screenshots/
+          if-no-files-found: ignore
   deploy:
     if: github.event_name != 'pull_request'
     needs: [test-build, e2e]

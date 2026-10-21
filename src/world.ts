@@ -46,11 +46,14 @@ export class WorldScene extends Phaser.Scene {
   private combatCallback: (event: Event) => void;
   private settingsCallback: (event: Event) => void;
   private cancelCallback: () => void;
+  private interactCallback: () => void;
+  private proximityId: string | null = null;
 
   constructor() {
     super({ key: 'World' });
     this.pointerCallback = pointer => this.pointAndWalk(pointer);
     this.cancelCallback = () => { this.avatars.forEach(a=>this.tweens.killTweensOf(a));this.isWalking=false; };
+    this.interactCallback = () => this.interactNearby();
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
     this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
@@ -75,6 +78,7 @@ export class WorldScene extends Phaser.Scene {
     this.scale.on('resize', this.relayout, this);
     window.addEventListener('lv:render', this.renderCallback);
     window.addEventListener('lv:cancel-walk', this.cancelCallback);
+    window.addEventListener('lv:interact-nearest', this.interactCallback);
     window.addEventListener('lv:walk', this.walkCallback);
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
@@ -86,6 +90,7 @@ export class WorldScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('lv:render', this.renderCallback);
       window.removeEventListener('lv:cancel-walk', this.cancelCallback);
+      window.removeEventListener('lv:interact-nearest', this.interactCallback);
       window.removeEventListener('lv:walk', this.walkCallback);
       window.removeEventListener('lv:combat', this.combatCallback);
       window.removeEventListener('lv:settings', this.settingsCallback);
@@ -132,6 +137,8 @@ export class WorldScene extends Phaser.Scene {
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
     this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
+    this.proximityId=null;
+    window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id:null,name:null}}));
   }
   private track<T extends Phaser.GameObjects.GameObject>(obj: T): T { this.sceneObjects.push(obj); return obj; }
   private cover(image: Phaser.GameObjects.Image, w: number, h: number): void {
@@ -304,8 +311,31 @@ export class WorldScene extends Phaser.Scene {
     }
     if(broke||won)this.cameras.main.flash(150,190,235,220);
   }
+  private nearestInteractable(): {id:string;name:string} | null {
+    if(!this.state||this.state.phase!=='explore'||!this.avatars[0])return null;
+    const lead=this.avatars[0],w=this.scale.width,h=this.scale.height;
+    const nearest=Object.entries(SITES[this.state.area])
+      .map(([id,p])=>({id,name:LABELS[id]||id,d:Math.hypot((p.x*w-lead.x)/w,(p.y*h-lead.y)/h)}))
+      .sort((a,b)=>a.d-b.d)[0];
+    return nearest&&nearest.d<.115?{id:nearest.id,name:nearest.name}:null;
+  }
+  private interactNearby():void {
+    if(document.querySelector('dialog[open]')||this.isWalking)return;
+    const nearest=this.nearestInteractable();
+    if(nearest)window.dispatchEvent(new CustomEvent('lv:hotspot',{detail:{id:nearest.id}}));
+  }
+  private updateProximity():void {
+    const nearest=this.nearestInteractable();
+    const id=nearest?.id||null;
+    if(id!==this.proximityId){
+      this.proximityId=id;
+      window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id,name:nearest?.name||null}}));
+    }
+  }
   update(time:number,delta:number):void {
-    if(!this.state || this.state.phase!=='explore' || this.isWalking || this.avatars.length===0) return;
+    if(!this.state || this.state.phase!=='explore' || this.avatars.length===0) return;
+    this.updateProximity();
+    if(this.isWalking)return;
     const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
     for(const npc of this.npcActors){if(pauseNpc)npc.tween.pause();else npc.tween.resume();}
     if(document.hidden || document.querySelector('dialog[open]'))return;
@@ -318,10 +348,7 @@ export class WorldScene extends Phaser.Scene {
     if(pressed('UP')||pressed('W'))vy--;
     if(pressed('DOWN')||pressed('S'))vy++;
     const lead=this.avatars[0];
-    if(this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) {
-      const closest=Object.entries(SITES[this.state.area]).map(([id,p])=>({id,d:Math.hypot((p.x*this.scale.width-lead.x)/this.scale.width,(p.y*this.scale.height-lead.y)/this.scale.height)})).sort((a,b)=>a.d-b.d)[0];
-      if(closest && closest.d<.105){window.dispatchEvent(new CustomEvent('lv:hotspot',{detail:{id:closest.id}}));return;}
-    }
+    if(this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) { this.interactNearby();return; }
     if(vx||vy){
       const m=Math.hypot(vx,vy);const speed=.23*delta;
       const nx=Phaser.Math.Clamp(lead.x+vx/m*speed,18,this.scale.width-18);

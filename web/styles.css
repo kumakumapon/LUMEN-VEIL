@@ -18,3 +18,25 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 :root{--text-scale:1}.dialogue p,.scene-copy p:last-child,.objective-panel p,.modal p,.setting-row{font-size:calc(13px * var(--text-scale))}.hotspot strong{font-size:calc(13px * var(--text-scale))}.hotspot small{font-size:calc(10px * var(--text-scale))}.reduce-motion *, .reduce-motion *:before,.reduce-motion *:after{animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 
 .landscape.area-vault{background-image:linear-gradient(90deg,rgba(3,13,26,.82),rgba(10,25,43,.18) 68%),url('./assets/forgotten-bell.webp')}
+
+/* Phase 2: Phaser map and dynamic ATB. Keep the v1 DOM command controls usable. */
+.world-stage{position:absolute;inset:0;z-index:2;overflow:hidden;touch-action:manipulation;background:rgba(5,18,30,.15)}
+.world-stage canvas{display:block;outline-offset:-3px;touch-action:none}
+.landscape-overlay,.scene-copy,.scene-topline,.scene-index{pointer-events:none}
+.landscape-overlay{z-index:3}
+.scene-topline{z-index:4}
+.scene-copy,.scene-index{z-index:4}
+.landscape{isolation:isolate;contain:layout}
+.landscape.area-harbor{background-image:linear-gradient(90deg,#061522a6,transparent),url('./assets/scene-harbor.webp')}
+.landscape.area-corridor{background-image:linear-gradient(90deg,#061522a6,transparent),url('./assets/scene-corridor.webp')}
+.landscape.area-vault{background-image:linear-gradient(90deg,#061522a6,transparent),url('./assets/scene-vault.webp')}
+.landscape.area-dock{background-image:linear-gradient(90deg,#061522a6,transparent),url('./assets/scene-dock.webp')}
+.atb-tray{background:rgba(8,31,52,.55);border:1px solid rgba(167,226,218,.27);padding:9px 13px;margin:0 0 14px}
+.atb-tray .mini-label{font-size:10px;color:#a7d9dd;letter-spacing:.16em}
+.atb-stats{display:grid;grid-template-columns:minmax(0,1fr) 92px;gap:15px;align-items:center;margin-top:7px}
+.atb-stats progress{width:100%;height:9px;accent-color:#a8e7df}
+.atb-stats b{color:#a7dad9;font-size:10px;letter-spacing:.08em;text-align:right}
+.party-symbol.has-portrait{border-radius:5px;border:1px solid rgba(170,221,227,.6);background:#0a2035;overflow:hidden}
+.party-symbol.has-portrait img{object-fit:cover;object-position:center 14%;width:100%;height:100%;display:block}
+.reduce-motion .world-stage,.reduce-motion .world-stage *{animation:none!important;transition:none!important}
+@media(max-width:750px){.world-stage{touch-action:pan-y}.landscape{height:clamp(270px,38svh,380px)}.scene-copy{max-width:70%;bottom:18px}.scene-copy p:last-child{font-size:11px}.scene-topline{top:13px}.atb-stats{grid-template-columns:minmax(0,1fr) 80px}}

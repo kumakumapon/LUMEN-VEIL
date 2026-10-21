@@ -43,6 +43,7 @@
 
     <section id="game-screen" class="game-screen screen" hidden aria-label="ゲーム本編">
       <div id="landscape" class="landscape area-harbor">
+        <div id="world-stage" class="world-stage" aria-label="自由に移動できるゲームマップ"></div>
         <div class="landscape-overlay"></div>
         <div class="scene-topline"><span id="area-kicker">THE VANISHING PORT</span><span id="scene-location">01 / FLOATING HARBOR</span></div>
         <div class="scene-copy">
@@ -58,6 +59,7 @@
           <div id="hotspots" class="hotspots"></div>
           <div id="battle-panel" class="battle-panel" hidden>
             <div class="foe-header"><div><span class="mini-label">ENCOUNTER · WAIT MODE</span><h3 id="foe-name"></h3></div><span class="foe-sigil" aria-hidden="true">◇</span></div>
+            <div class="atb-tray"><span class="mini-label">ACTIVE TIME BATTLE</span><div class="atb-stats"><progress id="atb-meter" aria-label="行動ゲージ" max="100" value="0"></progress><b id="atb-indicator">CHARGING</b></div></div>
             <div class="foe-bars"><span>HP</span><progress id="foe-hp" max="100" value="100"></progress><span>BREAK</span><progress id="foe-break" class="breakbar" max="100" value="100"></progress></div>
             <p id="foe-intent" class="intent"></p>
             <p id="active-hero" class="active-hero"></p>
@@ -86,6 +88,6 @@
   <footer class="site-footer"><span>© LUMEN VEIL • AN ORIGINAL FANTASY RPG</span><span id="notice" role="status" aria-live="polite">記憶は、この端末に保存されます。</span><span>GITHUB PAGES EDITION · PROTOTYPE</span></footer>
   <dialog id="overlay" class="modal" aria-labelledby="modal-title"><div class="modal-head"><h2 id="modal-title"></h2><button id="btn-close" type="button" aria-label="閉じる">✕</button></div><div id="modal-content"></div></dialog>
   <input id="import-file" type="file" accept="application/json,.json" hidden aria-label="セーブファイル読込み" />
-  <script type="module" src="./app.mjs"></script>
+  <script type="module" src="./main.ts"></script>
 </body>
 </html>

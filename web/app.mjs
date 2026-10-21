@@ -1,5 +1,11 @@
 import { AREAS, HOTSPOTS, PARTY, objective, newGame, interact, activeHero, battleAction, retryBattle } from './model.mjs';
 import { saveGame, loadGame, importGame, exportGame } from './save.mjs';
+import { WorldStage } from './game/stage';
+import { ActiveTimeGauge } from './game/atb';
+import { LumenAudio } from './game/music';
+import faceNoel from './assets/portrait-noel.webp?url';
+import faceSena from './assets/portrait-sena.webp?url';
+import faceRitz from './assets/portrait-ritz.webp?url';
 const $ = id => document.getElementById(id);
 let state = null;
 let saved = false;
@@ -12,25 +18,18 @@ try {
   if (typeof raw.fontScale === 'number' && raw.fontScale >= 1 && raw.fontScale <= 1.2) settings.fontScale = raw.fontScale;
   if (['easy', 'normal', 'hard'].includes(raw.difficulty)) settings.difficulty = raw.difficulty;
 } catch { /* Settings may be unavailable in restricted browsing contexts. */ }
-let audio = null;
+const soundtrack = new LumenAudio();
+let world = null;
+let atb = null;
 function beep(high = false) {
-  if (!settings.volume || document.hidden) return;
-  try {
-    const Context = globalThis.AudioContext || globalThis.webkitAudioContext;
-    if (!Context) return;
-    audio ||= new Context();
-    if (audio.state === 'suspended') void audio.resume();
-    const osc = audio.createOscillator(), gain = audio.createGain();
-    const now = audio.currentTime;
-    osc.type = 'sine'; osc.frequency.setValueAtTime(high ? 660 : 440, now);
-    osc.frequency.exponentialRampToValueAtTime(high ? 880 : 550, now + .11);
-    gain.gain.setValueAtTime(.001, now);
-    gain.gain.exponentialRampToValueAtTime(Math.max(.001, settings.volume * .045), now + .015);
-    gain.gain.exponentialRampToValueAtTime(.001, now + .2);
-    osc.connect(gain).connect(audio.destination); osc.start(now); osc.stop(now + .21);
-  } catch { /* Audio never blocks gameplay. */ }
+  soundtrack.unlock();
+  soundtrack.sound(high ? 'arts' : 'select');
 }
-document.addEventListener('visibilitychange', () => { if (document.hidden && audio?.state === 'running') void audio.suspend(); });
+function soundAction(kind) {
+  soundtrack.unlock();
+  soundtrack.sound(kind);
+}
+document.addEventListener('visibilitychange', () => soundtrack.visibility(document.hidden));
 function notice(message, isError = false) {
   const out = $('notice'); out.textContent = message; out.style.color = isError ? '#ffb7a8' : '';
 }
@@ -39,6 +38,8 @@ function persistSettings() {
   document.documentElement.style.setProperty('--text-scale', String(settings.fontScale));
   document.body.classList.toggle('reduce-motion', settings.reduceMotion);
   if (state) state.difficulty = settings.difficulty;
+  soundtrack.setVolume(settings.volume);
+  world?.sync(state, settings.reduceMotion);
 }
 async function checkpoint() {
   if (!state) return;
@@ -62,9 +63,38 @@ function switchScreen(view) {
   $('ending-screen').hidden = view !== 'ending';
 }
 function text(id, value) { $(id).textContent = value; }
+function syncWorld() {
+  if (!world || !state || state.phase === 'ending') return;
+  world.sync(state, settings.reduceMotion);
+}
+function beginAtb() {
+  if (state?.phase === 'battle') atb?.charge(activeHero(state) ?? 0);
+  else atb?.stop();
+}
+function commandAvailability(ready) {
+  if (!state || state.phase !== 'battle' || !state.battle) return;
+  const heroId = activeHero(state);
+  const available = heroId !== null && ready;
+  document.querySelectorAll('[data-command]').forEach(button => {
+    const key = button.dataset.command;
+    const invalid = key === 'echo' && (state.resonance < 100 || !state.battle.lastAction)
+      || key === 'arts' && (heroId === null || state.party[heroId].mp < 8);
+    button.disabled = !available || invalid;
+  });
+}
+function performHotspot(id) {
+  if (!state || state.phase !== 'explore') return;
+  const previous = state;
+  state = interact(state, id);
+  if (state !== previous) soundAction(state.phase === 'battle' ? 'damage' : 'move');
+  render();
+  if (state.phase === 'battle') beginAtb();
+  else void checkpoint();
+}
 function render() {
   if (!state) { switchScreen('title'); renderButtons(); return; }
   switchScreen(state.phase);
+  soundtrack.setCue(state.phase === 'battle' || state.phase === 'defeat' ? 'battle' : state.phase === 'ending' ? 'ending' : state.area);
   renderButtons();
   if (state.phase === 'ending') {
     text('ending-copy', state.records.length === 2
@@ -73,6 +103,7 @@ function render() {
     return;
   }
   const area = AREAS[state.area];
+  syncWorld();
   $('landscape').className = `landscape area-${state.area}`;
   text('area-kicker', area.kicker.toUpperCase());
   text('area-title', area.label);
@@ -94,13 +125,14 @@ function render() {
     const title = document.createElement('strong'); title.textContent = h.label;
     const detail = document.createElement('small'); detail.textContent = h.caption;
     content.append(title, detail); button.append(symbol, content); hotspots.append(button);
-    button.addEventListener('click', () => { const prev = state; state = interact(state, h.id); beep(state !== prev); render(); if (state.phase !== 'battle') void checkpoint(); });
+    button.addEventListener('click', () => performHotspot(h.id));
   }
   const party = $('party'); party.replaceChildren();
   for (const [i, hero] of state.party.entries()) {
     if (i === 2 && !state.flags.ritz) continue;
     const row = document.createElement('div'); row.className = 'party-member';
-    const portrait = document.createElement('span'); portrait.className = 'party-symbol'; portrait.textContent = ['◇', '✧', '⚙'][i];
+    const portrait = document.createElement('span'); portrait.className = 'party-symbol has-portrait';
+    const art = document.createElement('img'); art.alt = ''; art.src = [faceNoel, faceSena, faceRitz][i]; portrait.append(art);
     const info = document.createElement('div');
     const heading = document.createElement('div'); heading.className = 'party-top';
     const name = document.createElement('span'); name.textContent = hero.name;
@@ -127,41 +159,49 @@ function render() {
     const heroId = activeHero(state);
     text('active-hero', heroId === null ? '操作できる仲間がいない。' : `${state.party[heroId].name} のターン  /  WAIT`);
     const echo = document.querySelector('[data-command="echo"]');
-    echo.disabled = state.resonance < 100 || !b.lastAction;
-    const arts = document.querySelector('[data-command="arts"]'); arts.disabled = heroId === null || state.party[heroId].mp < 8;
+    commandAvailability(atb?.ready ?? true);
   }
 }
 function start() {
   state = newGame(settings.difficulty);
-  beep(true); render(); void checkpoint();
+  beep(true); render(); beginAtb(); void checkpoint();
 }
 async function resume() {
   try {
     const result = await loadGame();
     if (!result) { notice('再開できる記録がありません。', true); return; }
     state = result; settings.difficulty = state.difficulty;
-    persistSettings(); beep(true); render(); notice('保存された記憶を読み込みました。');
+    persistSettings(); beep(true); render(); beginAtb(); notice('保存された記憶を読み込みました。');
   } catch (e) { notice(`読み込めません：${e?.message || '不明なエラー'}`, true); }
 }
 $('btn-start').addEventListener('click', start);
 $('btn-new').addEventListener('click', start);
 $('btn-ending-new').addEventListener('click', start);
-$('btn-retry').addEventListener('click', () => { state = retryBattle(state); beep(true); render(); });
+$('btn-retry').addEventListener('click', () => { state = retryBattle(state); soundAction('victory'); render(); beginAtb(); });
 $('btn-load').addEventListener('click', () => { void resume(); });
 $('btn-title-continue').addEventListener('click', () => { void resume(); });
 $('btn-save').addEventListener('click', () => { void checkpoint(); });
 $('commands').addEventListener('click', event => {
   const command = event.target.closest('button[data-command]');
   if (!command || command.disabled || !state || state.phase !== 'battle') return;
-  state = battleAction(state, command.dataset.command); beep(true); render();
-  if (state.phase === 'explore') void checkpoint();
+  if (atb && !atb.ready) return;
+  const previous = state.battle?.hp ?? 0;
+  const kind = command.dataset.command;
+  state = battleAction(state, kind);
+  soundAction(kind === 'attack' || kind === 'arts' || kind === 'echo' || kind === 'guard' ? kind : 'select');
+  world?.effect(kind, Math.max(0, previous - (state.battle?.hp ?? 0)));
+  render(); beginAtb();
+  if (state.phase === 'explore') { soundAction('victory'); void checkpoint(); }
+  if (state.phase === 'defeat') soundAction('damage');
 });
 function modal(title, body) {
   text('modal-title', title); $('modal-content').replaceChildren(); $('modal-content').append(body);
   if (!$('overlay').open) $('overlay').showModal();
+  atb?.setPaused(true);
 }
-$('btn-close').addEventListener('click', () => $('overlay').close());
-$('overlay').addEventListener('click', e => { if (e.target === $('overlay')) $('overlay').close(); });
+$('btn-close').addEventListener('click', () => { $('overlay').close(); atb?.setPaused(false); });
+$('overlay').addEventListener('click', e => { if (e.target === $('overlay')) { $('overlay').close(); atb?.setPaused(false); } });
+$('overlay').addEventListener('close', () => atb?.setPaused(false));
 $('btn-journal').addEventListener('click', () => {
   if (!state) return;
   const container = document.createElement('div');
@@ -191,14 +231,14 @@ $('import-file').addEventListener('change', async event => {
   try {
     const imported = await importGame(await file.text());
     state = imported; saved = true; settings.difficulty = imported.difficulty;
-    persistSettings(); $('overlay').close(); render(); notice('保存された記憶を取り込みました。');
+    persistSettings(); $('overlay').close(); render(); beginAtb(); notice('保存された記憶を取り込みました。');
   } catch (e) { notice(`インポートに失敗：${e?.message || '不正なデータ'}`, true); }
 });
 $('btn-settings').addEventListener('click', () => {
   const container = document.createElement('div');
   const description = document.createElement('p'); description.textContent = '演出・音量・戦闘難易度を調整できます。設定はこの端末に保持されます。'; container.append(description);
   const controls = [
-    { label: '効果音', id: 'setting-volume', type: 'range', min: 0, max: 1, step: .05, value: settings.volume },
+    { label: 'BGM・効果音', id: 'setting-volume', type: 'range', min: 0, max: 1, step: .05, value: settings.volume },
     { label: '文字サイズ', id: 'setting-font', type: 'range', min: 1, max: 1.2, step: .1, value: settings.fontScale },
     { label: '演出を減らす', id: 'setting-reduce', type: 'checkbox', value: settings.reduceMotion },
   ];
@@ -231,7 +271,7 @@ document.addEventListener('keydown', event => {
     const command = $('commands').querySelectorAll('button')[Number(event.key) - 1];
     if (command && !command.disabled) { command.click(); event.preventDefault(); }
   }
-  if (state.phase === 'explore' && ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
+  if (state.phase === 'explore' && event.target?.tagName !== 'CANVAS' && ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) {
     const buttons = [...$('hotspots').querySelectorAll('button')];
     if (!buttons.length) return;
     const current = buttons.indexOf(document.activeElement);
@@ -239,6 +279,13 @@ document.addEventListener('keydown', event => {
     buttons[(current + buttons.length + direction) % buttons.length].focus(); event.preventDefault();
   }
 });
+// Initialize optional scene + gauge without replacing the pure legacy state.
+atb = new ActiveTimeGauge($('atb-meter'), $('atb-indicator'), commandAvailability);
+try {
+  world = new WorldStage($('world-stage'), id => performHotspot(id), () => soundtrack.sound('move'));
+} catch (e) {
+  console.warn('Phaser renderer unavailable; standard game controls remain active.', e);
+}
 try {
   const existing = await loadGame();
   saved = !!existing;

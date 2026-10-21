@@ -1,13 +1,16 @@
 {
   "name": "lumen-veil",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/serve.mjs",
-    "build": "node scripts/build.mjs",
-    "preview": "node scripts/serve.mjs dist",
+    "dev": "vite --host 127.0.0.1 --port 4173",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": { "node": ">=22" },
+  "dependencies": { "phaser": "3.90.0" },
+  "devDependencies": { "typescript": "5.9.3", "vite": "7.1.12" }
 }

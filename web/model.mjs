@@ -1,4 +1,5 @@
 // Pure, deterministic game state. No DOM or storage APIs here.
+import { enemyIntent, statsFor } from './expansion.mjs';
 export const SAVE_VERSION = 1;
 export const PARTY = [
   { id: 'noel', name: 'ノエル', role: '運び屋 / 剣', maxHp: 180, maxMp: 48, power: 24, art: '黎明斬' },
@@ -10,6 +11,8 @@ export const AREAS = {
   corridor: { label: '回廊の整備区画', kicker: '失われた歯車の音', description: '灯の消えた通路には、かつて使われていた記録装置と破損した空路が残されている。' },
   vault: { label: '白紙の保管庫', kicker: '鐘の音が文字を消す', description: '白金の扉の向こう、壁に刻まれた何千もの名前が音もなく薄れていく。' },
   dock: { label: '雲海の船着き場', kicker: 'それでも朝は来る', description: '飛空艇の帆が朝の光を受けている。街は消えかけているが、まだ間に合う。' },
+  market: { label: '白帆の市場', kicker: '名のない品物にも歴史がある', description: '帆布の屋台と機械仕掛けの時計が並ぶ。忘れられた道具の記憶が、まだ誰かを待っている。' },
+  observatory: { label: '星環の観測塔', kicker: '空の環と、消えた星座', description: '砕けた環の欠片を望む高い塔。星図の余白に、かつての旅人の名前が残されている。' },
 };
 export const HOTSPOTS = {
   harbor: [
@@ -17,6 +20,8 @@ export const HOTSPOTS = {
     { id: 'sign', label: '消えた案内板', icon: '◇', caption: '記憶灯をかざして調べる' },
     { id: 'letter', label: '宛先のない手紙', icon: '✉', caption: '失われた約束の痕跡' },
     { id: 'to-corridor', label: '整備区画へ', icon: '➜', caption: '港の奥に続く通路' },
+    { id: 'to-market', label: '白帆の市場', icon: '◈', caption: '道具と物語が集まる市場' },
+    { id: 'to-observatory', label: '星環の観測塔', icon: '✧', caption: '失われた星図を探す' },
   ],
   corridor: [
     { id: 'ritz', label: '助けを求める声', icon: '⚔', caption: '機械兵に囲まれた整備士' },
@@ -34,6 +39,17 @@ export const HOTSPOTS = {
   dock: [
     { id: 'escape', label: '飛空艇に乗る', icon: '✦', caption: '次の空へ旅立つ' },
     { id: 'to-vault', label: '保管庫へ戻る', icon: '↶', caption: '忘れ物を確かめる' },
+  ],
+  market: [
+    { id: 'merchant', label: '商人ユイ', icon: '✦', caption: '忘れられた道具の話を聞く' },
+    { id: 'navigator', label: '航路士', icon: '◇', caption: '空の道について話す' },
+    { id: 'market-cache', label: '忘れられた装備箱', icon: '✧', caption: '装備品を手に入れる' },
+    { id: 'to-harbor', label: '浮遊港へ戻る', icon: '↶', caption: '港の広場へ戻る' },
+  ],
+  observatory: [
+    { id: 'scholar', label: '星見のエル', icon: '✦', caption: '星の記録を聞く' },
+    { id: 'observatory-cache', label: '古い星図の箱', icon: '✧', caption: '装備品を見つける' },
+    { id: 'to-harbor', label: '浮遊港へ戻る', icon: '↶', caption: '港の広場へ戻る' },
   ],
 };
 export function newGame(difficulty = 'normal') {
@@ -82,6 +98,13 @@ export function interact(state, id) {
     case 'sign': return s.flags.sena ? flag(s, 'sign', '記憶灯をかざすと、消えた文字が青く浮かびあがる。「整備区画／記憶保管庫」——進む道が見えた。') : said(s, '文字が薄れて読めない。近くの記録士なら分かるかもしれない。');
     case 'letter': return record(s, 'letter', '封筒の裏に、消えかけた筆跡があった。「夜明けを忘れないで」——誰の声だろう。');
     case 'to-corridor': return s.flags.sign ? move(s, 'corridor', '錆びついた歯車を越え、薄暗い回廊へと足を踏み入れた。') : said(s, '行き先を示す案内板が読めない。');
+    case 'to-market': return move(s, 'market', '帆布の屋根が並ぶ市場へ。名前を忘れた道具たちが、静かに輝いている。');
+    case 'to-observatory': return move(s, 'observatory', '星環の観測塔へ。空を横切る環の欠片が、遠い記憶を呼び起こす。');
+    case 'merchant': return said(s, '商人ユイ「名前が消えても、この道具を作った手の温かさは覚えています。」');
+    case 'navigator': return said(s, '航路士「観測塔には、空路を照らす古い星図が残っています。」');
+    case 'scholar': return said(s, '星見のエル「砕けた環と、消えた名前。保管庫に答えが眠っているかもしれません。」');
+    case 'market-cache': return said(s, '倉庫に眠る細剣と槌を発見した。装備画面で身につけられる。');
+    case 'observatory-cache': return said(s, '古い星図の箱から、星詠みの杖と白金の護符を見つけた。');
     case 'ritz': return s.flags.ritz ? said(s, 'リッツ「助けてくれてありがと！ 灯の調子、一緒に見よう。」') : spawn(s, 'warden');
     case 'lamp': return s.flags.ritz ? flag(s, 'lamp', 'リッツ「ここの歯車を直せば……ほら！」記憶灯に青緑の火がともり、消えた足跡が戻ってきた。') : said(s, '細かな修理が必要だ。整備士の助けを探そう。');
     case 'badge': return record(s, 'badge', '錆びた名札には「航海士ミラ」と書かれていた。いつかその名を誰かに届けよう。');
@@ -103,7 +126,7 @@ export function activeHero(s) {
   }
   return null;
 }
-export function battleAction(state, command) {
+export function battleAction(state, command, progress = null) {
   if (state.phase !== 'battle' || !state.battle) return state;
   if (!['attack', 'arts', 'echo', 'guard'].includes(command)) return state;
   const s = structuredClone(state), b = s.battle;
@@ -133,6 +156,7 @@ export function battleAction(state, command) {
     text += `${b.lastAction.owner}の「${b.lastAction.name}」を残響で再演！`;
   }
   if (damage > 0) {
+    if (progress) damage += statsFor(progress, hero.id).power;
     if (b.stagger) damage = Math.round(damage * 1.4);
     b.hp = Math.max(0, b.hp - damage);
     b.break = Math.max(0, b.break - shred);
@@ -161,14 +185,15 @@ export function battleAction(state, command) {
       b.stagger = false;
       b.break = b.maxBreak;
     } else {
-      const alive = s.party.map((h, i) => h.hp > 0 && (s.flags.ritz || i !== 2) ? i : -1).filter(i => i >= 0);
-      const victim = alive[Math.floor(b.count / 2 - 1) % alive.length];
+      const plan = enemyIntent(s);
+      if (!plan) { b.log = text; return s; }
+      const victim = plan.target;
       const target = s.party[victim];
-      const boost = b.kind === 'boss' && b.count % 6 === 0;
-      const scale = s.difficulty === 'easy' ? .7 : s.difficulty === 'hard' ? 1.35 : 1;
-      let hit = Math.round((b.kind === 'boss' ? (boost ? 36 : 22) : 14) * scale);
+      let hit = plan.damage;
+      if (progress) hit = Math.max(1, hit - statsFor(progress, target.id).guard);
       if (b.guard.includes(victim)) { hit = Math.floor(hit / 2); b.guard = b.guard.filter(x => x !== victim); }
       target.hp = Math.max(0, target.hp - hit);
+      text += ` 敵の戦術：${plan.name}。`;
       text += ` ${b.name}の反撃！${target.name}に${hit}ダメージ。`;
     }
   }

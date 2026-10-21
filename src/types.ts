@@ -1,5 +1,5 @@
 export type Phase = 'explore' | 'battle' | 'defeat' | 'ending';
-export type Area = 'harbor' | 'corridor' | 'vault' | 'dock';
+export type Area = 'harbor' | 'corridor' | 'vault' | 'dock' | 'market' | 'observatory';
 export type Command = 'attack' | 'arts' | 'echo' | 'guard';
 export interface Hero { id: string; name: string; role: string; hp: number; mp: number; maxHp: number; maxMp: number; power: number; art: string }
 export interface Battle { kind: string; name: string; hp: number; maxHp: number; break: number; maxBreak: number; stagger: boolean; count: number; actorIndex: number; lastAction: { damage: number; shred: number; owner: string; name: string } | null; log: string }

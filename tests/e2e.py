@@ -14,6 +14,7 @@ def finish_fight(page):
     for _ in range(45):
         if page.locator('#battle-panel').is_hidden():
             return
+        expect(page.locator('[data-command="attack"]')).to_be_enabled(timeout=10000)
         if page.locator('[data-command="echo"]').is_enabled():
             page.locator('[data-command="echo"]').click()
         elif page.locator('[data-command="arts"]').is_enabled():
@@ -34,6 +35,9 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / 'title-desktop.png'), full_page=True)
     page.locator('#btn-start').click()
     expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
+    expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
+    # A genuine Phaser Canvas is running under the DOM-accessible controls.
+    assert page.locator('#phaser-stage canvas').count() == 1
     explore(page, 'sena')
     explore(page, 'sign')
     explore(page, 'letter')
@@ -47,6 +51,8 @@ with sync_playwright() as p:
     expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
     explore(page, 'ritz')
     expect(page.locator('#battle-panel')).to_be_visible()
+    expect(page.locator('#atb-fill')).to_be_visible()
+    expect(page.locator('#atb-status')).to_have_text('WAIT / READY',timeout=10000)
     page.screenshot(path=str(OUT / 'battle-desktop.png'), full_page=True)
     finish_fight(page)
     explore(page, 'lamp')
@@ -75,7 +81,50 @@ with sync_playwright() as p:
     mobile.locator('#btn-start').tap()
     expect(mobile.locator('[data-hotspot="sena"]')).to_be_visible()
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
+    expect(mobile.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     mobile.screenshot(path=str(OUT / 'explore-mobile.png'), full_page=True)
-    assert not failures, f'Uncaught page exceptions: {failures}'
+    # Legacy production IndexedDB save must survive the TypeScript/Vite upgrade.
+    fixture = {
+        'version': 1, 'phase':'explore', 'area':'corridor',
+        'flags': {'sena': True, 'sign': True, 'ritz': True, 'lamp': True, 'key': False, 'boss': False, 'escaped': False},
+        'records':['letter','badge'],
+        'party': [
+            {'id':'noel','hp':149,'mp':30},
+            {'id':'sena','hp':120,'mp':53},
+            {'id':'ritz','hp':210,'mp':42},
+        ],
+        'difficulty':'normal','resonance':64,'battle':None,
+        'narrative':'リッツが記憶灯を修復した。',
+    }
+    legacy = browser.new_page()
+    legacy.on('pageerror', lambda exc: failures.append(str(exc)))
+    legacy.goto(ROOT, wait_until='domcontentloaded')
+    legacy.evaluate("""async data => {
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('lumen-veil-save-v1', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('slots');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('slots', 'readwrite');
+        tx.objectStore('slots').put(JSON.stringify(data), 'chapter-zero');
+        tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }""", fixture)
+    legacy.reload()
+    legacy.locator('#btn-title-continue').click()
+    expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
+    assert '64%' in legacy.locator('#resonance-number').inner_text()
+    assert legacy.locator('#party').inner_text().find('149/180') >= 0
+    assert legacy.locator('#party').inner_text().find('120/145') >= 0
+    # JSON import of a corrupted file must not erase the IndexedDB save.
+    legacy.locator('#import-file').set_input_files({'name':'bad.json', 'mimeType':'application/json', 'buffer':b'{broken'})
+    expect(legacy.locator('#notice')).to_contain_text('インポートに失敗')
+    legacy.reload()
+    legacy.locator('#btn-title-continue').click()
+    expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
+    assert not failures, f'Uncaught page exceptions: {failures}' 
     print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
     browser.close()

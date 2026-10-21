@@ -1,22 +1,51 @@
-# Visual & Audio Migration Plan (work in progress)
+# Visual & Audio Migration — Chapter 0
 
-## Non-negotiable compatibility guarantees
+## Compatibility contract
 
-- Keep the **v1** save envelope, the IndexedDB database name/store/key, and the existing `validateSave` allowlist logic compatible. Migration must not reset a saved user's progress or their settings.
-- Keep the static GitHub Pages URL at `/LUMEN-VEIL/`, including every dynamic import and media URL; no server-only APIs and no credentials in the bundle.
-- Preserve the complete Chapter 0 route, combat actions, journal, retry, keyboard and touchscreen functionality.
+The v1 save model (`web/model.mjs`) and storage adapter (`web/save.mjs`) remain the source of truth. In particular:
 
-## Implementation
+- IndexedDB `lumen-veil-save-v1`, store `slots`, key `chapter-zero`, schema version `1` are unchanged.
+- Existing JSON exports and IndexedDB strings still pass through the original strict `parseSave` allowlist before write.
+- Renderer positions, particle effects, ATB fill and Web Audio scheduling are **ephemeral**. They are never serialized.
+- Stored checkpoints in battle/defeat still load from their preceding safe exploration state.
+- GitHub Pages project pathname remains `/LUMEN-VEIL/`; all media is served from `import.meta.env.BASE_URL + 'assets/…'`.
 
-1. Migrate the build and source entrypoint to Vite + TypeScript; use Phaser for animated scene rendering while keeping accessible DOM controls.
-2. Implement keyboard/touch map walking and transitions without changing the scene/flag save semantics.
-3. Add visibly filling WAIT ATB gauges, anticipation/break/echo effects; retain deterministic actions and saved checkpoints.
-4. Add optimized, original environment/character art; provide fallback images for failed loads.
-5. Add original BGM/SFX using Web Audio, gated on user gesture, with volume and visibility handling.
+## System diagram
 
-## Acceptance / regression
+```text
+index.html (Vite entry)
+  └─ src/main.ts
+       ├─ src/world.ts   → Phaser renderer; pointer/touch, WASD walking, visuals
+       ├─ src/atb.ts     → WAIT ATB gauge + command-ready input gate
+       ├─ src/sound.ts   → Web Audio procedural original BGM + SFX
+       └─ web/app.mjs    → DOM controls, narration, event coordination
+            ├─ web/model.mjs  → authoritative quest/combat state (unchanged)
+            └─ web/save.mjs   → IndexedDB save/JSON import (unchanged)
+```
 
-- Legacy fixtures for both fresh and progressed v1 saves import and resume unchanged.
-- `npm test`, `npm run build`, and Playwright E2E pass in CI on desktop/mobile and on the actual GitHub Pages project subpath.
-- CI only deploys after main merge; preview builds must not perform Pages deployment.
-- Document any intentional scope limits, engine fallbacks and asset licenses.
+Communication is via local `CustomEvent` messages (`lv:render`, `lv:walk`, `lv:hotspot`, `lv:combat`, `lv:settings`, `lv:sfx`). Phaser is not a persistence dependency; users can interact using the DOM controls if Canvas is blocked.
+
+## Gameplay
+
+- Four existing quest regions. Phaser provides region-specific picture backdrops, animated protagonist+companions, location markers and parallax/floating lights.
+- Click/tap the Canvas or hotspot for a character movement animation and interaction. WASD/arrows walk freely within the safe illustration viewport. Travel to other regions still uses the original location transition flags.
+- In battle, the ATB bar charges to 100, then WAIT pauses for the player's choice; after each valid action the gauge recharges. No countdown is serialized.
+- Attack, arts, echo and guard display tailored light bursts; a break/victory flashes the scene. Damage/stagger/echo calculations are the v1 source of truth.
+- Soundtrack is entirely original, generated via Web Audio oscillator envelopes (7 mood motifs plus SFX). This makes BGM/SFX available without licensed audio recordings or external requests. The original volume setting controls both.
+
+## Media
+
+- `public/assets/` keeps WebP environmental visuals and individual character busts as lightweight static files, including crops derived from original concept art generated for this project.
+- Text is rendered by DOM/Canvas; the text embedded in draft concept boards is NOT used as an interactive HUD.
+- Failure to load media uses the fallback landscape/CSS and procedural sprite textures.
+
+## Quality gates
+
+- Node unit tests verify unchanged combat rules plus historical v1 JSON and database identity.
+- `npm run build` typechecks TS, bundles Vite, checks output includes Pages-path-safe resources.
+- Playwright E2E covers complete Chapter 0 and old IndexedDB data, bad JSON rejection, mobile viewport and visual canvas availability.
+- Pages deployment remains only after `main` push and after E2E succeeds; PR validation never attempts deployment.
+
+## Deliberate limits
+
+Walk positions and ATB are not new save fields. Enemy actions still occur by the deterministic original turn counter. Future real-time ATB and collision tilemaps should be introduced behind separate gameplay versioning/migrations rather than silently changing v1 saves.

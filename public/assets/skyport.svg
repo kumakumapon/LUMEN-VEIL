@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 850" preserveAspectRatio="xMidYMid slice">
+<defs>
+ <linearGradient id="sky" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#061123"/><stop offset=".37" stop-color="#203b61"/><stop offset=".74" stop-color="#9caec1"/><stop offset="1" stop-color="#fbdfb3"/></linearGradient>
+ <linearGradient id="cloud" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#dce5e9" stop-opacity=".88"/><stop offset="1" stop-color="#8c9eb5" stop-opacity=".1"/></linearGradient>
+ <linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d5dde2"/><stop offset=".55" stop-color="#859cb2"/><stop offset="1" stop-color="#344c6c"/></linearGradient>
+ <linearGradient id="light"><stop stop-color="#f3e8cc"/><stop offset="1" stop-color="#7eacc1"/></linearGradient>
+ <radialGradient id="sun"><stop stop-color="#fff4d6" stop-opacity=".95"/><stop offset=".18" stop-color="#ffdebb" stop-opacity=".58"/><stop offset="1" stop-color="#ffbfa4" stop-opacity="0"/></radialGradient>
+ <pattern id="windows" width="34" height="48" patternUnits="userSpaceOnUse"><rect x="11" y="10" width="8" height="19" rx="4" fill="#f2d8a1" opacity=".55"/></pattern>
+ <filter id="blur"><feGaussianBlur stdDeviation="22"/></filter>
+</defs>
+<path fill="url(#sky)" d="M0 0h1600v850H0z"/>
+<g opacity=".82" fill="#f0f0e4">
+ <circle cx="86" cy="92" r="1.2"/><circle cx="254" cy="184" r="2"/><circle cx="408" cy="71" r="1.4"/><circle cx="677" cy="144" r="1.9"/><circle cx="890" cy="46" r="1.2"/><circle cx="1115" cy="113" r="2"/><circle cx="1359" cy="56" r="1.2"/><circle cx="1515" cy="154" r="2"/><circle cx="1204" cy="216" r="1"/><circle cx="349" cy="254" r="1.4"/><circle cx="1458" cy="311" r="1"/>
+</g>
+<!-- Ancient broken sky ring. -->
+<g fill="none" stroke-linecap="round" transform="translate(907 230) rotate(-15)">
+ <circle r="365" stroke="#aebdc9" stroke-opacity=".16" stroke-width="23" stroke-dasharray="1160 135 380 620"/>
+ <circle r="365" stroke="#e9e0d1" stroke-opacity=".52" stroke-width="9" stroke-dasharray="1090 192 410 603"/>
+ <circle r="390" stroke="#cbdbea" stroke-opacity=".21" stroke-width="2" stroke-dasharray="450 95 250 125"/>
+</g>
+<circle cx="1385" cy="580" r="330" fill="url(#sun)"/>
+<g fill="url(#cloud)" opacity=".87">
+ <path d="M0 671q93-95 207-32 84-76 181-22 96-78 222-8 118-68 210-12 113-74 215-15 116-46 202 11 173-91 363 0v257H0z"/>
+ <path d="M0 735q164-78 332-13 122-77 261-8 190-107 362-10 181-81 334-13 160-55 311-6v165H0z" opacity=".74"/>
+</g>
+<!-- Remote city and floating terraces. -->
+<g transform="translate(668 225)">
+ <path d="M-160 353Q32 286 238 343l-43 54-38 99-212 32-69-84Z" fill="#2d4763" opacity=".86"/>
+ <path d="M-170 322Q-42 283 72 296q154-40 287 25l-26 52q-271 21-480-5Z" fill="url(#stone)"/>
+ <path d="M-145 332q246-45 483 3" stroke="#f6edda" stroke-width="5" fill="none" opacity=".6"/>
+ <g fill="url(#stone)" stroke="#d9dde1" stroke-width="3">
+  <path d="M-116 174h70v153h-70z"/><path d="M-113 163l32-76 31 76z"/>
+  <path d="M-36 124h97v216h-97z"/><path d="M-33 113l46-70 45 70z"/>
+  <path d="M71 206h87v139H71z"/><path d="M83 185l31-58 30 58z"/>
+  <path d="M162 142h80v205h-80z"/><path d="M164 133l38-85 37 85z"/>
+  <path d="M250 238h66v109h-66z"/>
+ </g>
+ <g fill="url(#windows)" opacity=".8"><path d="M-118 180h75v159h-75zM-38 127h102v216H-38zM70 202h90v138H70zM160 147h86v199h-86zM246 236h74v110h-74z"/></g>
+ <path d="M13 42V-26M9-26l6-38 6 38" stroke="#f9f0d6" stroke-width="7"/>
+ <path d="M202 45V-18M198-18l5-38 5 38" stroke="#ece5d5" stroke-width="5"/>
+ <path d="M-192 345q176-75 346-14l188 9" stroke="#c3d4dc" stroke-width="6" fill="none" opacity=".6"/>
+</g>
+<!-- Far bridges and layered foreground architecture -->
+<g fill="none" stroke="#d0dce0" stroke-opacity=".52" stroke-width="8"><path d="M0 558Q252 490 495 567"/><path d="M946 579Q1221 470 1600 533"/></g>
+<g fill="url(#stone)" opacity=".93">
+ <path d="M0 625q182-32 398 19l-28 80-370 33z"/><path d="M0 602h412v32H0z"/>
+ <path d="M102 466h50v140h-50zM218 511h43v98h-43zM315 471h50v137h-50z"/>
+ <path d="M109 461l18-40 18 40zM325 466l15-45 18 45z"/>
+ <path d="M1250 605q210-60 350-10v170l-350-34z"/>
+ <path d="M1303 518h57v94h-57zM1411 454h88v172h-88zM1510 520h56v95h-56z"/>
+ <path d="M1420 453l34-71 35 71z"/>
+</g>
+<g fill="#f2dab0" opacity=".58"><path d="M109 504h10v29h-10zM332 500h11v28h-11zM1425 495h9v23h-9zM1463 495h9v23h-9z"/></g>
+<!-- An airship crossing the skyline -->
+<g transform="translate(327 328) rotate(-5)" stroke="#e8e3cf" stroke-width="2" fill="#9dafb8">
+ <path d="M-97 13q90-47 194 0-78 49-194 0z"/>
+ <path d="M-44 24q36 41 81 0v20H-45z" fill="#465d76"/><path d="M-83 8 0-61 83 8" stroke="#f5e7c9" fill="#dfe6db" opacity=".83"/><path d="M0-61v91"/><path d="M-95 14H95"/>
+</g>
+<path d="M0 760q360-66 756 6 421-102 844-25v109H0Z" fill="#09182c" opacity=".45"/>
+<path d="M0 833q475-50 839-18 424-70 761-24" fill="none" stroke="#e7e6df" stroke-opacity=".19" stroke-width="5"/>
+</svg>

@@ -7,7 +7,7 @@ import { createTiles, TILE_COLUMNS, TILE_ROWS, TILE_MIN_Y, TILE_MAX_Y } from './
 
 type Point = { x: number; y: number };
 const SITES: Record<Area, Record<string, Point>> = {
-  harbor: { sena: { x: .69, y: .57 }, sign: { x: .50, y: .46 }, letter: { x: .35, y: .70 }, 'to-corridor': { x: .88, y: .57 } },
+  harbor: { sena: { x: .69, y: .57 }, sign: { x: .50, y: .46 }, letter: { x: .35, y: .70 }, 'to-corridor': { x: .88, y: .57 }, 'to-market': { x:.16,y:.56 }, 'to-observatory': { x:.77,y:.42 } },
   corridor: { ritz: { x: .75, y: .55 }, lamp: { x: .45, y: .46 }, badge: { x: .29, y: .66 }, key: { x: .56, y: .69 }, 'to-vault': { x: .90, y: .48 }, 'to-harbor': { x: .14, y: .60 } },
   vault: { boss: { x: .41, y: .47 }, 'to-dock': { x: .84, y: .61 }, 'to-corridor': { x: .13, y: .61 } },
   dock: { escape: { x: .80, y: .53 }, 'to-vault': { x: .17, y: .57 } },
@@ -51,14 +51,19 @@ export class WorldScene extends Phaser.Scene {
   private cancelCallback: () => void;
   private interactCallback: () => void;
   private proximityId: string | null = null;
+  private lastFieldPosition: { area: Area; x: number; y: number } | null = null;
+  private drawnArea: Area | null = null;
+  private drawnSize = { width: 960, height: 420 };
+  private resetCallback: () => void;
 
   constructor() {
     super({ key: 'World' });
     this.pointerCallback = pointer => this.pointAndWalk(pointer);
     this.cancelCallback = () => { this.avatars.forEach(a=>this.tweens.killTweensOf(a));this.isWalking=false; };
     this.interactCallback = () => this.interactNearby();
+    this.resetCallback = () => { this.lastFieldPosition=null;this.drawnArea=null;this.sceneKey='';this.draw(); };
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
-    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail);
+    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail,true);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
     this.settingsCallback = event => { this.reducesMotion = !!(event as CustomEvent<{ reduceMotion: boolean }>).detail.reduceMotion; };
   }
@@ -84,6 +89,7 @@ export class WorldScene extends Phaser.Scene {
     window.addEventListener('lv:render', this.renderCallback);
     window.addEventListener('lv:cancel-walk', this.cancelCallback);
     window.addEventListener('lv:interact-nearest', this.interactCallback);
+    window.addEventListener('lv:reset-field', this.resetCallback);
     window.addEventListener('lv:walk', this.walkCallback);
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
@@ -96,6 +102,7 @@ export class WorldScene extends Phaser.Scene {
       window.removeEventListener('lv:render', this.renderCallback);
       window.removeEventListener('lv:cancel-walk', this.cancelCallback);
       window.removeEventListener('lv:interact-nearest', this.interactCallback);
+      window.removeEventListener('lv:reset-field', this.resetCallback);
       window.removeEventListener('lv:walk', this.walkCallback);
       window.removeEventListener('lv:combat', this.combatCallback);
       window.removeEventListener('lv:settings', this.settingsCallback);
@@ -137,7 +144,11 @@ export class WorldScene extends Phaser.Scene {
       canvas.refresh();
     }
   }
-  private relayout(): void { if (this.state) { this.sceneKey = ''; this.draw(); } }
+  private relayout(): void {
+    // RESIZE fires when HUD/layout height changes. Rebuild scenery but preserve
+    // the player position in normalized map coordinates.
+    if (this.state) this.draw();
+  }
   private wipe(): void {
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
     this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
@@ -154,10 +165,16 @@ export class WorldScene extends Phaser.Scene {
     image.setPosition(w / 2, h / 2);
   }
   private draw(): void {
-    this.wipe();
     const state = this.state;
+    if(this.avatars[0] && this.drawnArea){
+      this.lastFieldPosition={area:this.drawnArea,x:this.avatars[0].x/this.drawnSize.width,y:this.avatars[0].y/this.drawnSize.height};
+    }
+    this.wipe();
     if (!state || state.phase === 'ending') return;
     const w = this.scale.width, h = this.scale.height;
+    this.drawnSize={width:Math.max(w,1),height:Math.max(h,1)};
+    this.drawnArea=state.area;
+    if(this.lastFieldPosition?.area!==state.area)this.lastFieldPosition=null;
     const inBattle=state.phase==='battle'||state.phase==='defeat';
     const key=inBattle&&this.textures.exists('battle-arena')?'battle-arena':ASSET_NAMES[state.area];
     if(inBattle)this.game.canvas.dataset.battleBackground=key;
@@ -197,11 +214,17 @@ export class WorldScene extends Phaser.Scene {
   private drawExplore(w: number, h: number): void {
     const s = this.state;
     if (!s) return;
-    const positions = [ [.19,.73], [.13,.76], [.25,.77] ];
+    const last=this.lastFieldPosition?.area===s.area?this.lastFieldPosition:null;
+    const start=last?[last.x,last.y]:[.19,.73];
+    const positions = [start,[start[0]-.06,start[1]+.03],[start[0]+.06,start[1]+.04]];
     this.avatars = s.party.flatMap((hero, i) => {
       if (i === 2 && !s.flags.ritz) return [];
       const [px,py] = positions[i];
-      const sprite = this.track(this.add.sprite(px * w, py * h, `${hero.id}-step-0`).setDepth(7-i).setOrigin(.5, 1).setScale(Math.max(.8, Math.min(1.42, w / 690))));
+      const artKey='battle-'+hero.id;
+      const illustrated=this.textures.exists(artKey);
+      const sprite = this.track(this.add.sprite(px*w,py*h,illustrated?artKey:`${hero.id}-step-0`).setDepth(7-i).setOrigin(.5,1));
+      if(illustrated)sprite.setDisplaySize(w<550?52:76,w<550?88:124);
+      else sprite.setScale(Math.max(.8,Math.min(1.42,w/690)));
       return [sprite];
     });
     this.drawNpcPatrols(w,h,s.area);
@@ -314,23 +337,33 @@ export class WorldScene extends Phaser.Scene {
     if(best && best.distance<(w<500?31:39)) this.walkTo({id:best.id,area:this.state.area},true);
     else this.animateWalk(Phaser.Math.Clamp(x,20,w-20),Phaser.Math.Clamp(y,h*.39,h*.82));
   }
+  private setFieldFrame(sprite:Phaser.GameObjects.Sprite,id:string,time:number,moving:boolean):void {
+    if(this.textures.exists('battle-'+id)){
+      sprite.setAngle(moving&&!this.reducesMotion?Math.sin(time/135)*2.5:0);
+    }else{
+      sprite.setTexture(`${id}-step-${moving&&!this.reducesMotion?Math.floor(time/110)%4:0}`);
+    }
+  }
   private animateWalk(x:number,y:number,onArrive?:()=>void):void {
     const lead=this.avatars[0];
     if(!lead||!this.state)return;
     const w=this.scale.width,h=this.scale.height;
     const area=this.state.area;
     const route=routeTo(area,{x:lead.x/w,y:lead.y/h},{x:x/w,y:y/h});
-    if(!route.length)return;
+    if(!route.length){
+      window.dispatchEvent(new CustomEvent('lv:navigation-feedback',{detail:{message:'そこには進めません。別の場所をタップしてください。'}}));
+      return;
+    }
     this.tweens.killTweensOf(lead);
     this.isWalking=true;
     const move=(index:number):void=>{
       if(!this.state||this.state.phase!=='explore'||this.state.area!==area){this.isWalking=false;return;}
-      if(index>=route.length){this.isWalking=false;lead.setTexture('noel-step-0');onArrive?.();return;}
+      if(index>=route.length){this.isWalking=false;this.setFieldFrame(lead,'noel',this.time.now,false);onArrive?.();return;}
       const point=route[index], px=point.x*w,py=point.y*h;
       const distance=Phaser.Math.Distance.Between(lead.x,lead.y,px,py);
       const duration=this.reducesMotion?25:Math.max(30,distance*3.3);
       this.tweens.add({targets:lead,x:px,y:py,duration,ease:'Linear',onUpdate:()=>{
-        if(!this.reducesMotion)lead.setTexture(`noel-step-${Math.floor(this.time.now/110)%4}`);
+        this.setFieldFrame(lead,'noel',this.time.now,true);
         this.avatars.slice(1).forEach((sprite,i)=>{
           sprite.x=Phaser.Math.Linear(sprite.x,lead.x-45+i*78,.13);
           sprite.y=Phaser.Math.Linear(sprite.y,lead.y+11,.13);
@@ -383,6 +416,9 @@ export class WorldScene extends Phaser.Scene {
   update(time:number,delta:number):void {
     if(!this.state || this.state.phase!=='explore' || this.avatars.length===0) return;
     this.updateProximity();
+    const lead=this.avatars[0];
+    this.game.canvas.dataset.playerX=(lead.x/this.scale.width).toFixed(4);
+    this.game.canvas.dataset.playerY=(lead.y/this.scale.height).toFixed(4);
     if(this.isWalking)return;
     const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
     for(const npc of this.npcActors){if(pauseNpc)npc.tween.pause();else npc.tween.resume();}
@@ -395,7 +431,6 @@ export class WorldScene extends Phaser.Scene {
     if(pressed('RIGHT')||pressed('D'))vx++;
     if(pressed('UP')||pressed('W'))vy--;
     if(pressed('DOWN')||pressed('S'))vy++;
-    const lead=this.avatars[0];
     if(this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) { this.interactNearby();return; }
     if(vx||vy){
       const m=Math.hypot(vx,vy);const speed=.23*delta;
@@ -404,14 +439,14 @@ export class WorldScene extends Phaser.Scene {
       if(walkable(this.state.area,nx/this.scale.width,ny/this.scale.height)){lead.x=nx;lead.y=ny;}
       else if(walkable(this.state.area,nx/this.scale.width,lead.y/this.scale.height))lead.x=nx;
       else if(walkable(this.state.area,lead.x/this.scale.width,ny/this.scale.height))lead.y=ny;
-      lead.setTexture(`noel-step-${Math.floor(time/110)%4}`);
+      this.setFieldFrame(lead,'noel',time,true);
       for(const [i,s] of this.avatars.slice(1).entries()){
         s.x=Phaser.Math.Linear(s.x,lead.x-45+i*78,.07);
         s.y=Phaser.Math.Linear(s.y,lead.y+11,.07);
-        s.setTexture(`${i===0?'sena':'ritz'}-step-${Math.floor(time/140)%4}`);
+        this.setFieldFrame(s,i===0?'sena':'ritz',time,true);
       }
       if(time-this.lastFootstep>420){this.lastFootstep=time;window.dispatchEvent(new CustomEvent('lv:sfx',{detail:{name:'step'}}));}
-    }else this.avatars.forEach((s,i)=>s.setTexture(`${['noel','sena','ritz'][i]}-step-0`));
+    }else this.avatars.forEach((s,i)=>this.setFieldFrame(s,['noel','sena','ritz'][i],time,false));
   }
 }
 

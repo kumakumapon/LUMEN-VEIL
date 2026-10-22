@@ -107,6 +107,11 @@ with sync_playwright() as p:
     explore(page, 'key')
     explore(page, 'to-vault')
     explore(page, 'boss')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-enemy-art', 'illustrated')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-background', 'battle-arena')
+    expect(page.locator('.walking-guide')).to_be_hidden()
+    page.screenshot(path=str(OUT / 'boss-illustrated-desktop.png'), full_page=True)
     finish_fight(page)
     explore(page, 'to-dock')
     explore(page, 'escape')
@@ -131,6 +136,13 @@ with sync_playwright() as p:
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     expect(mobile.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     mobile.screenshot(path=str(OUT / 'explore-mobile.png'), full_page=True)
+    explore(mobile, 'sena')
+    explore(mobile, 'sign')
+    explore(mobile, 'to-corridor')
+    explore(mobile, 'ritz')
+    expect(mobile.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
+    mobile.screenshot(path=str(OUT / 'battle-illustrated-mobile.png'), full_page=True)
+    assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     # Legacy production IndexedDB save must survive the TypeScript/Vite upgrade.
     fixture = {
         'version': 1, 'phase':'explore', 'area':'corridor',
@@ -177,3 +189,4 @@ with sync_playwright() as p:
     assert not failures, f'Uncaught page exceptions: {failures}' 
     print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
     browser.close()
+

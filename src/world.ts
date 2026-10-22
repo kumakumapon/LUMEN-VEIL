@@ -51,6 +51,7 @@ export class WorldScene extends Phaser.Scene {
   private cancelCallback: () => void;
   private interactCallback: () => void;
   private proximityId: string | null = null;
+  private walkGeneration = 0;
   private lastFieldPosition: { area: Area; x: number; y: number } | null = null;
   private drawnArea: Area | null = null;
   private drawnSize = { width: 960, height: 420 };
@@ -59,7 +60,11 @@ export class WorldScene extends Phaser.Scene {
   constructor() {
     super({ key: 'World' });
     this.pointerCallback = pointer => this.pointAndWalk(pointer);
-    this.cancelCallback = () => { this.avatars.forEach(a=>this.tweens.killTweensOf(a));this.isWalking=false; };
+    this.cancelCallback = () => {
+      this.walkGeneration++;
+      this.avatars.forEach(a=>this.tweens.killTweensOf(a));
+      this.isWalking=false;
+    };
     this.interactCallback = () => this.interactNearby();
     this.resetCallback = () => { this.lastFieldPosition=null;this.drawnArea=null;this.sceneKey='';this.draw(); };
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
@@ -184,6 +189,7 @@ export class WorldScene extends Phaser.Scene {
     if (this.state) this.draw();
   }
   private wipe(): void {
+    this.walkGeneration++;
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
     this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
@@ -418,7 +424,7 @@ export class WorldScene extends Phaser.Scene {
     this.animateWalk(x,y,interact?()=>window.dispatchEvent(new CustomEvent('lv:hotspot',{detail:{id}})):undefined);
   }
   private pointAndWalk(pointer: Phaser.Input.Pointer):void {
-    if (!this.state || this.state.phase!=='explore' || this.isWalking) return;
+    if (!this.state || this.state.phase!=='explore') return;
     const w=this.scale.width,h=this.scale.height, x=pointer.x,y=pointer.y;
     if(y>h*.84) return; // leave the bottom dialogue/scene copy unobstructed
     const best=Object.entries(SITES[this.state.area]).map(([id,p])=>({id,distance:Phaser.Math.Distance.Between(x,y,p.x*w,p.y*h)})).sort((a,b)=>a.distance-b.distance)[0];
@@ -438,13 +444,20 @@ export class WorldScene extends Phaser.Scene {
     const w=this.scale.width,h=this.scale.height;
     const area=this.state.area;
     const route=routeTo(area,{x:lead.x/w,y:lead.y/h},{x:x/w,y:y/h});
+    if(!route.length && Math.hypot(x-lead.x,y-lead.y)<Math.max(12,w*.012)){
+      onArrive?.();
+      return;
+    }
     if(!route.length){
       window.dispatchEvent(new CustomEvent('lv:navigation-feedback',{detail:{message:'そこには進めません。別の場所をタップしてください。'}}));
       return;
     }
+    this.walkGeneration++;
+    const generation=this.walkGeneration;
     this.tweens.killTweensOf(lead);
     this.isWalking=true;
     const move=(index:number):void=>{
+      if(generation!==this.walkGeneration)return;
       if(!this.state||this.state.phase!=='explore'||this.state.area!==area){this.isWalking=false;return;}
       if(index>=route.length){this.isWalking=false;this.setFieldFrame(lead,'noel',this.time.now,false);onArrive?.();return;}
       const point=route[index], px=point.x*w,py=point.y*h;
@@ -507,6 +520,8 @@ export class WorldScene extends Phaser.Scene {
     const lead=this.avatars[0];
     this.game.canvas.dataset.playerX=(lead.x/this.scale.width).toFixed(4);
     this.game.canvas.dataset.playerY=(lead.y/this.scale.height).toFixed(4);
+    // Manual input always takes priority over an automatic click-to-walk route.
+    if(this.isWalking && this.keys.some(key=>key.isDown))this.cancelCallback();
     if(this.isWalking)return;
     const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
     for(const npc of this.npcActors){if(pauseNpc)npc.tween.pause();else npc.tween.resume();}

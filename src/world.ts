@@ -331,17 +331,26 @@ export class WorldScene extends Phaser.Scene {
     for (const obstacle of OBSTACLES[s.area]) {
       this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
     }
+    const storyGoal=!s.flags.sena?'sena':!s.flags.sign?'sign':!s.flags.ritz?'ritz':!s.flags.lamp?'lamp':!s.flags.key?'key':!s.flags.boss?'boss':'escape';
+    const goalArea:Record<string,Area>={sena:'harbor',sign:'harbor',ritz:'corridor',lamp:'corridor',key:'corridor',boss:'vault',escape:'dock'};
+    const highlighted=SITES[s.area][storyGoal]?storyGoal:
+      s.area==='market'||s.area==='observatory'?'to-harbor':
+      s.area==='harbor'?'to-corridor':
+      s.area==='corridor'?(goalArea[storyGoal]==='harbor'?'to-harbor':'to-vault'):
+      s.area==='vault'?(goalArea[storyGoal]==='dock'?'to-dock':'to-corridor'):'to-vault';
     for (const [id, coords] of Object.entries(SITES[s.area])) {
       const x = Math.min(w-26, Math.max(26, coords.x * w)), y = Math.min(h-35, Math.max(52, coords.y * h));
-      const ring = this.add.circle(x, y, w < 500 ? 13 : 19, 0x75cecd, .14).setStrokeStyle(1.7, 0xece9c6, .85).setDepth(4);
-      const dot = this.add.circle(x, y, 4, 0xf0deac, .95).setDepth(5);
-      const name = this.add.text(x, y - 33, LABELS[id] || id, { fontFamily: 'Noto Sans JP, sans-serif', fontSize: w < 550 ? '10px' : '12px', color: '#f4f6ec', backgroundColor: '#061827c9', padding: {x:5,y:3} }).setOrigin(.5,.5).setDepth(6);
+      const main=id===highlighted;
+      const ring = this.add.circle(x, y, w < 500 ? 13 : 19, main?0xe9b96c:0x75cecd, main?.25:.06)
+        .setStrokeStyle(main?2.6:1.1,main?0xffe0a5:0x9cc8c7,main?1:.48).setDepth(4);
+      const dot = this.add.circle(x, y, main?5:3, main?0xffe0a5:0xa2d6d3, main?1:.55).setDepth(5);
+      const name = this.add.text(x, y - 33, LABELS[id] || id, { fontFamily: 'Noto Sans JP, sans-serif', fontSize: w < 550 ? '10px' : '12px', color: main?'#fff2c7':'#d3e1e3', backgroundColor: '#061827c9', padding: {x:5,y:3} }).setOrigin(.5,.5).setDepth(6).setAlpha(main?1:.62);
       this.markerObjects.push(ring,dot,name);
       ring.setInteractive({ useHandCursor: true });
       ring.on('pointerdown', (pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation(); this.walkTo({ id, area: s.area }, true);
       });
-      if (!this.reducesMotion) this.tweens.add({targets: ring, scale: 1.19, alpha: .32, duration: 1150, yoyo:true, repeat:-1});
+      if (!this.reducesMotion && main) this.tweens.add({targets: ring, scale: 1.19, alpha: .52, duration: 1150, yoyo:true, repeat:-1});
     }
   }
   private drawNpcPatrols(w:number,h:number,area:Area):void {

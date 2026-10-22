@@ -17,6 +17,9 @@ windowWithBridge.__lvSettings = {volume:.28,reduceMotion:false,fontScale:1,diffi
 window.addEventListener('lv:render', (event: Event) => {
   const detail = (event as CustomEvent<GameEvent>).detail;
   windowWithBridge.__lvLatestState = detail.state;
+  const combat=detail.state?.phase==='battle'||detail.state?.phase==='defeat';
+  document.getElementById('game-screen')?.classList.toggle('in-combat',combat);
+  document.getElementById('phaser-stage')?.setAttribute('aria-label',combat?'戦闘画面。下のコマンドから行動を選べます。':'歩けるフィールド。タップ、WASD、矢印キーで移動できます。');
   score.setGame(detail.state);
   score.setSettings(detail.settings);
   windowWithBridge.__lvSettings = detail.settings;
@@ -68,3 +71,4 @@ function startRenderer(): void {
 }
 
 await import('../web/app.mjs');
+

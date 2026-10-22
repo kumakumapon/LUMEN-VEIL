@@ -81,6 +81,13 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 @media(max-width:730px){.title-ensemble{display:none}}
 
 
+/* Combat keeps the illustration unobstructed; location text becomes a caption. */
+.in-combat .walking-guide,.in-combat .scene-copy .chapter-label,.in-combat .scene-copy p:last-child{display:none}
+.in-combat .scene-copy{bottom:16px;max-width:45%}
+.in-combat .scene-copy h2{font-size:clamp(15px,1.7vw,23px);letter-spacing:.1em;margin:0}
+.in-combat .landscape-overlay{background:linear-gradient(0deg,#0613218c,transparent 35%)}
+.in-combat .landscape{filter:none}
+
 /* Immersive JRPG field: exploration happens on the map, not in a choice grid. */
 .game-screen.explore-mode{position:relative;min-height:calc(100svh - 105px);padding:0}
 .explore-mode .landscape{height:calc(100svh - 110px);min-height:590px;border-bottom:0}

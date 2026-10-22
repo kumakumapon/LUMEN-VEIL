@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { activeHero } from '../web/model.mjs';
+import { battleArtLayout, fitArtwork } from './battle-art';
 import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
 import { createTiles, TILE_COLUMNS, TILE_ROWS, TILE_MIN_Y, TILE_MAX_Y } from './tilemaps';
@@ -33,6 +35,7 @@ export class WorldScene extends Phaser.Scene {
   private avatars: Phaser.GameObjects.Sprite[] = [];
   private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween}[] = [];
   private foe: Phaser.GameObjects.Container | null = null;
+  private battleActors: { heroId: string; sprite: Phaser.GameObjects.Sprite; ring: Phaser.GameObjects.Ellipse }[] = [];
   private markerObjects: Phaser.GameObjects.GameObject[] = [];
   private sceneObjects: Phaser.GameObjects.GameObject[] = [];
   private keys: Phaser.Input.Keyboard.Key[] = [];
@@ -63,6 +66,8 @@ export class WorldScene extends Phaser.Scene {
     const path = import.meta.env.BASE_URL + 'assets/';
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
     for (const id of ['noel','sena','ritz']) this.load.image('face-'+id,path+'portrait-'+id+'.webp');
+    for (const id of ['noel','sena','ritz','bell']) this.load.image('battle-'+id, path+'battle-'+id+'.webp');
+    this.load.image('battle-arena',path+'battle-arena.webp');
     // Rendering always has procedural fallback textures when an image cannot be loaded.
     this.load.on('loaderror', (file: { key: string }) => console.warn('Artwork fallback:', file.key));
   }
@@ -135,10 +140,11 @@ export class WorldScene extends Phaser.Scene {
   private relayout(): void { if (this.state) { this.sceneKey = ''; this.draw(); } }
   private wipe(): void {
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
-    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.bg = null; this.foe = null;
+    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
     this.proximityId=null;
     window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id:null,name:null}}));
+    delete this.game.canvas.dataset.battleArt; delete this.game.canvas.dataset.enemyArt; delete this.game.canvas.dataset.battleBackground;
   }
   private track<T extends Phaser.GameObjects.GameObject>(obj: T): T { this.sceneObjects.push(obj); return obj; }
   private cover(image: Phaser.GameObjects.Image, w: number, h: number): void {
@@ -152,14 +158,16 @@ export class WorldScene extends Phaser.Scene {
     const state = this.state;
     if (!state || state.phase === 'ending') return;
     const w = this.scale.width, h = this.scale.height;
-    const key = ASSET_NAMES[state.area];
+    const inBattle=state.phase==='battle'||state.phase==='defeat';
+    const key=inBattle&&this.textures.exists('battle-arena')?'battle-arena':ASSET_NAMES[state.area];
+    if(inBattle)this.game.canvas.dataset.battleBackground=key;
     if (this.textures.exists(key)) {
       const bg = this.track(this.add.image(w / 2, h / 2, key).setDepth(0).setAlpha(.87));
       this.cover(bg, w, h); this.bg = bg;
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
-    this.drawTilemap(w,h,state.area);
+    if(state.phase==='explore')this.drawTilemap(w,h,state.area);
     // Ambient cloud gradients, distant airship lights and a ground line add parallax depth.
     this.track(this.add.rectangle(w / 2, h * .84, w, h * .32, 0x061726, .23).setDepth(2));
     this.track(this.add.ellipse(w * .48, h * .77, w * .94, 18, 0xb3cad4, .24).setDepth(3));
@@ -233,28 +241,61 @@ export class WorldScene extends Phaser.Scene {
     const s=this.state;
     if(!s?.battle) return;
     const boss=s.battle.kind==='boss';
-    const cx=w*.33, cy=h*.49;
-    const shadow=this.track(this.add.ellipse(cx, h*.77, boss?150:100, 22,0x07111b,.65).setDepth(4));
-    const ring=this.track(this.add.circle(cx,cy,boss?61:45,0x0d2034,.45).setStrokeStyle(boss?11:7,0xd6bc8e,.85).setDepth(6));
-    const iris=this.track(this.add.circle(cx,cy,boss?24:18,0xbde5d9,.98).setStrokeStyle(5,0x765e4b).setDepth(7));
+    const layout=battleArtLayout(w,h);
+    const cx=layout.enemy.x, cy=h*.49;
+    this.track(this.add.ellipse(cx,layout.enemy.y,boss?150:100,22,0x07111b,.5).setDepth(4));
+    if(boss && this.textures.exists('battle-bell')) {
+      const image=this.add.image(0,0,'battle-bell').setOrigin(.5,1);
+      const source=image.texture.getSourceImage() as HTMLImageElement;
+      const size=fitArtwork(source.width,source.height,layout.enemy.maxWidth,layout.enemy.maxHeight);
+      image.setDisplaySize(size.width,size.height);
+      this.foe=this.track(this.add.container(cx,layout.enemy.y,[image]).setDepth(6));
+    } else {
+      const ring=this.track(this.add.circle(cx,cy,boss?61:45,0x0d2034,.45).setStrokeStyle(boss?11:7,0xd6bc8e,.85).setDepth(6));
+      const iris=this.track(this.add.circle(cx,cy,boss?24:18,0xbde5d9,.98).setStrokeStyle(5,0x765e4b).setDepth(7));
+      if(!this.reducesMotion)this.tweens.add({targets:iris,alpha:.52,duration:950,yoyo:true,repeat:-1});
+      void ring;
+    }
     const halo=this.track(this.add.circle(cx,cy,boss?79:58,0x9de8e1,.03).setStrokeStyle(2,0x9de8e1,.75).setDepth(5));
-    if(!this.reducesMotion){this.tweens.add({targets:halo,scale:1.14,alpha:.35,duration:1600,yoyo:true,repeat:-1});this.tweens.add({targets:iris,alpha:.52,duration:950,yoyo:true,repeat:-1});}
-    // Ring components are independently tracked; no duplicate destruction.
-    const positions=[[.70,.78],[.82,.72],[.91,.82]];
+    if(!this.reducesMotion)this.tweens.add({targets:halo,scale:1.14,alpha:.35,duration:1600,yoyo:true,repeat:-1});
     this.avatars=s.party.flatMap((hero,i)=>{
       if(i===2&&!s.flags.ritz)return[];
-      const [px,py]=positions[i];
-      const sprite=this.track(this.add.sprite(px*w,py*h,`${hero.id}-step-0`).setOrigin(.5,1).setScale(Math.max(.8,Math.min(1.35,w/760))).setDepth(8));
-      if(hero.hp===0)sprite.setTint(0x718091);
+      const slot=layout.heroes[i];
+      const illustrated=this.textures.exists('battle-'+hero.id);
+      const texture=illustrated?'battle-'+hero.id:`${hero.id}-step-0`;
+      const sprite=this.track(this.add.sprite(slot.x,slot.y,texture).setOrigin(.5,1).setDepth(8));
+      if(illustrated){
+        const source=sprite.texture.getSourceImage() as HTMLImageElement;
+        const size=fitArtwork(source.width,source.height,slot.maxWidth,slot.maxHeight);
+        sprite.setDisplaySize(size.width,size.height);
+      }else sprite.setScale(Math.max(.8,Math.min(1.35,w/760)));
+      this.track(this.add.ellipse(slot.x,slot.y-3,Math.min(65,w*.10),10,0x07111b,.35).setDepth(4));
+      const ring=this.track(this.add.ellipse(slot.x,slot.y-4,Math.min(75,w*.12),13,0x80ead7,.08).setStrokeStyle(1.5,0x80ead7,.9).setDepth(5));
+      this.battleActors.push({heroId:hero.id,sprite,ring});
       return[sprite];
     });
-    void shadow; void ring; void iris; void halo;
+    this.game.canvas.dataset.battleArt=this.battleActors.every(a=>a.sprite.texture.key.startsWith('battle-'))?'illustrated':'fallback';
+    this.game.canvas.dataset.enemyArt=boss&&this.textures.exists('battle-bell')?'illustrated':'procedural';
+    this.syncBattleActors();
+  }
+  private syncBattleActors():void {
+    const state=this.state;
+    if(!state?.battle)return;
+    const current=activeHero(state);
+    for(const actor of this.battleActors){
+      const index=state.party.findIndex(h=>h.id===actor.heroId);
+      const alive=state.party[index]?.hp>0;
+      actor.sprite.setAlpha(alive?1:.35);
+      if(alive)actor.sprite.clearTint();else actor.sprite.setTint(0x718091);
+      actor.ring.setVisible(alive && index===current);
+    }
   }
   sync(state: GameView | null): void {
     const previous=this.state;
     this.state=state;
     const key=state && state.phase!=='ending' ? `${state.area}:${state.phase}`:'';
     if(key!==this.sceneKey){this.sceneKey=key;this.draw();return;}
+    if(state?.phase==='battle' || state?.phase==='defeat')this.syncBattleActors();
     if(state?.phase==='explore' && previous?.area===state.area && previous.flags.ritz!==state.flags.ritz)this.draw();
   }
   private walkTo({id,area}:{id:string;area:Area}, interact=false):void {
@@ -301,10 +342,17 @@ export class WorldScene extends Phaser.Scene {
   private combatEffect({command,broke,won}:{command:Command;broke:boolean;won:boolean}):void {
     if(!this.state || (this.state.phase!=='battle'&&this.state.phase!=='explore'))return;
     const w=this.scale.width,h=this.scale.height;
-    const from=this.avatars[0];
-    const x=from?.x||w*.7,y=from?.y-h*.1||h*.6;
+    const index=this.state.battle?activeHero(this.state):null;
+    const id=index===null?null:this.state.party[index]?.id;
+    const from=this.battleActors.find(a=>a.heroId===id)?.sprite;
+    const x=from?.x??w*.7,y=(from?.y??h*.7)-h*.15;
     const color=command==='arts'?0x92c8ff:command==='echo'?0xa7f6ef:command==='guard'?0xf0d59d:0xffd4a4;
     if(this.reducesMotion)return;
+    if(command==='guard'){
+      const ward=this.add.circle(x,y,28,0xf0d59d,.12).setStrokeStyle(2,0xf0d59d,.8).setDepth(20);
+      this.tweens.add({targets:ward,scale:1.6,alpha:0,duration:450,onComplete:()=>ward.destroy()});
+      return;
+    }
     for(let i=0;i<9;i++){
       const spark=this.add.circle(x+(i-4)*7,y,3.5,color,.9).setDepth(20);
       this.tweens.add({targets:spark,x:w*.33+(i-4)*12,y:h*.43+(i%3-1)*18,alpha:0,scale:.25,duration:300+i*25,onComplete:()=>spark.destroy()});
@@ -366,3 +414,4 @@ export class WorldScene extends Phaser.Scene {
     }else this.avatars.forEach((s,i)=>s.setTexture(`${['noel','sena','ritz'][i]}-step-0`));
   }
 }
+

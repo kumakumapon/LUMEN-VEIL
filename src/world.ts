@@ -223,8 +223,11 @@ export class WorldScene extends Phaser.Scene {
       const artKey='battle-'+hero.id;
       const illustrated=this.textures.exists(artKey);
       const sprite = this.track(this.add.sprite(px*w,py*h,illustrated?artKey:`${hero.id}-step-0`).setDepth(7-i).setOrigin(.5,1));
-      if(illustrated)sprite.setDisplaySize(w<550?52:76,w<550?88:124);
-      else sprite.setScale(Math.max(.8,Math.min(1.42,w/690)));
+      if(illustrated){
+        const img=sprite.texture.getSourceImage() as HTMLImageElement;
+        const maxW=w<550?55:82,maxH=w<550?96:138;
+        sprite.setScale(Math.min(maxW/Math.max(img.width,1),maxH/Math.max(img.height,1)));
+      }else sprite.setScale(Math.max(.8,Math.min(1.42,w/690)));
       return [sprite];
     });
     this.drawNpcPatrols(w,h,s.area);
@@ -254,7 +257,13 @@ export class WorldScene extends Phaser.Scene {
     };
     for(const [i,npc] of patterns[area].entries()){
       const pos=SITES[area][npc.id];if(!pos)continue;
-      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,npc.skin+'-step-0').setOrigin(.5,1).setScale(.64).setDepth(6).setTint(npc.color));
+      const illustration=(npc.id==='sena'||npc.id==='ritz')&&this.textures.exists('battle-'+npc.skin);
+      const key=illustration?'battle-'+npc.skin:npc.skin+'-step-0';
+      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,key).setOrigin(.5,1).setDepth(6));
+      if(illustration){
+        const img=sprite.texture.getSourceImage() as HTMLImageElement;
+        sprite.setScale(Math.min(66/Math.max(img.width,1),114/Math.max(img.height,1)));
+      }else sprite.setScale(.64).setTint(npc.color);
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?27:-26),25,w-25);
       const tween=this.tweens.add({targets:sprite,x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
       this.npcActors.push({sprite,tween});

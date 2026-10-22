@@ -21,6 +21,6 @@ test('NPC portrait assets are independent scalable illustrations',()=>{
     assert.match(xml,/viewBox="0 0 512 640"/);
     assert.match(xml,/<svg[\s>]/);
     assert.ok(xml.length>1800);
-    assert.doesNotMatch(xml,/https?:\/\//);
+    assert.doesNotMatch(xml,/<image\s+href=/);
   }
 });

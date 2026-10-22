@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 640" role="img" aria-labelledby="title-merchant desc-merchant">
+ <title id="title-merchant">商人ユイの立ち絵</title><desc id="desc-merchant">LUMEN VEILのNPC専用イラスト</desc>
+ <defs><linearGradient id="sky-merchant" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3b2937"/><stop offset=".58" stop-color="#b88a69"/><stop offset="1" stop-color="#10243c"/></linearGradient>
+ <linearGradient id="coat-merchant" x1="0" y1="0" x2="1" y2=".7"><stop stop-color="#7c4a51"/><stop offset="1" stop-color="#15283d"/></linearGradient>
+ <linearGradient id="face-merchant" x1="0" y1="0" x2="1" y2=".9"><stop stop-color="#f6dbc4"/><stop offset=".55" stop-color="#e9b99e"/><stop offset="1" stop-color="#bb8675"/></linearGradient>
+ <linearGradient id="hair-merchant" x1="0" y1="0" x2="1" y2=".6"><stop stop-color="#b6765e"/><stop offset="1" stop-color="#6b3934"/></linearGradient>
+ <radialGradient id="light-merchant"><stop stop-color="#f8e9bd" stop-opacity=".45"/><stop offset="1" stop-color="#f8e9bd" stop-opacity="0"/></radialGradient>
+ <filter id="soft-merchant"><feGaussianBlur stdDeviation="17"/></filter></defs>
+ <rect width="512" height="640" fill="url(#sky-merchant)"/>
+ <circle cx="383" cy="138" r="190" fill="url(#light-merchant)"/>
+ <g opacity=".35" filter="url(#soft-merchant)"><circle cx="70" cy="120" r="29" fill="#fce1a2"/><circle cx="426" cy="340" r="35" fill="#b9e7ef"/><circle cx="121" cy="450" r="34" fill="#f8d3a1"/></g>
+ <path d="M0 554L122 463 169 401 355 398 405 453 512 539V640H0Z" fill="#0c1c2d" opacity=".55"/>
+ <path d="M45 640Q49 472 168 402L212 368 301 370 356 403Q461 447 474 640Z" fill="url(#coat-merchant)" stroke="#e8c393" stroke-width="9"/>
+ <path d="M142 434L223 390 260 480 290 391 374 435 338 640 174 640Z" fill="#7c4a51" opacity=".88"/>
+ <path d="M206 382L257 460 307 381" fill="none" stroke="#e8c393" stroke-width="12"/>
+ <path d="M235 352L235 403Q259 431 285 399L284 351Z" fill="#dbad92"/>
+ <path d="M140 240Q122 123 221 102Q325 67 378 185L381 300 348 356 174 355Z" fill="url(#hair-merchant)"/>
+ <path d="M170 215Q177 152 256 151Q334 148 347 218L337 321Q303 373 255 382Q199 365 177 317Z" fill="url(#face-merchant)"/>
+ <path d="M160 263Q139 246 152 286Q162 306 176 296M350 264Q370 247 361 289Q354 305 340 296" fill="#e6b79e"/>
+ <path d="M184 230Q204 213 235 226M276 226Q305 211 328 230" stroke="#6b3934" stroke-width="8" fill="none" stroke-linecap="round"/>
+ <path d="M190 263Q213 249 236 262Q212 278 190 263ZM277 263Q300 249 324 262Q300 279 277 263Z" fill="#f6f1e5"/>
+ <ellipse cx="214" cy="264" rx="10" ry="12" fill="#5d6e6b"/><ellipse cx="300" cy="264" rx="10" ry="12" fill="#5d6e6b"/>
+ <circle cx="216" cy="261" r="3" fill="#fff"/><circle cx="302" cy="261" r="3" fill="#fff"/>
+ <path d="M257 269L250 299 264 302" stroke="#b97c70" stroke-width="4" fill="none" stroke-linecap="round"/>
+ <path d="M236 325Q256 334 278 324" stroke="#a76b70" stroke-width="5" fill="none" stroke-linecap="round"/>
+ <path d="M153 214Q152 151 201 118Q230 104 257 113Q310 102 355 166L342 215Q317 172 283 174Q237 169 202 203Z" fill="url(#hair-merchant)"/>
+ <path d="M169 184Q195 135 241 135" stroke="#b6765e" stroke-width="11" fill="none" opacity=".7"/>
+ <path d="M125 426Q146 360 190 335L222 354 180 467Z" fill="#c88d71"/><path d="M351 425Q386 355 409 356L430 453Z" fill="#9e5b58"/><path d="M205 382L322 440" stroke="#e8c393" stroke-width="16"/><circle cx="345" cy="465" r="29" fill="#875544" stroke="#e8c393" stroke-width="8"/><path d="M158 141Q191 91 259 88Q323 84 355 137Q288 130 220 155Z" fill="#8b5550"/><path d="M154 146Q240 131 363 147" stroke="#e8c393" stroke-width="8" fill="none"/>
+ <path d="M103 615Q165 559 179 458" stroke="#e8c393" stroke-width="5" opacity=".55" fill="none"/>
+ <path d="M409 614Q351 561 337 463" stroke="#e8c393" stroke-width="5" opacity=".55" fill="none"/>
+ <rect x="0" y="0" width="512" height="640" fill="none" stroke="#e9d6ad" stroke-width="9" opacity=".45"/>
+ </svg>

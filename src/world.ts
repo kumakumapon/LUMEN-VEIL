@@ -4,6 +4,7 @@ import { battleArtLayout, fitArtwork } from './battle-art';
 import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
 import { drawFieldFigure, FIELD_ACTORS, FACINGS, facingFromDelta, fieldTextureKey } from './field-characters';
+import { drawAreaDressing } from './field-set-dressing';
 import type { FieldActor, Facing } from './field-characters';
 
 type Point = { x: number; y: number };
@@ -251,6 +252,7 @@ export class WorldScene extends Phaser.Scene {
       grid.fillStyle(p.accent,.95);grid.fillCircle(x,horizon-24,4);
       grid.fillStyle(p.accent,.12);grid.fillCircle(x,horizon-24,12);
     }
+    drawAreaDressing(grid,area,w,h);
   }
   private drawExplore(w: number, h: number): void {
     const s = this.state;

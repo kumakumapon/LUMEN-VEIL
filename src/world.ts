@@ -200,15 +200,60 @@ export class WorldScene extends Phaser.Scene {
     }
   }
   private drawTilemap(w:number,h:number,area:Area):void {
+    // The original cinematic concept paintings show distant bridges and people
+    // in midair. They are *backdrops*, not walkable maps. Build an opaque stone
+    // courtyard over their lower section so avatars always have a visible floor.
     const grid=this.track(this.add.graphics().setDepth(1));
-    const colors=[0x7b95a3,0x789a83,0xb8a477,0x263847,0x477b94,0x8b7461];
+    const palettes:Record<Area,{base:number;light:number;dark:number;edge:number;accent:number}>={
+      harbor:{base:0x455f6a,light:0x68818a,dark:0x314854,edge:0x9ab5b6,accent:0xd9bf8c},
+      corridor:{base:0x394e56,light:0x556c70,dark:0x283b43,edge:0x8da9aa,accent:0xd5b88b},
+      vault:{base:0x303e50,light:0x485e6e,dark:0x202e3f,edge:0x9caab8,accent:0xb9d8e5},
+      dock:{base:0x466976,light:0x71939a,dark:0x31515f,edge:0x9bc4c9,accent:0xe1d1a5},
+      market:{base:0x6b6258,light:0x908277,dark:0x504c47,edge:0xc3b49a,accent:0xf0d59b},
+      observatory:{base:0x3e4b69,light:0x62728f,dark:0x2d3b56,edge:0xa9b8d5,accent:0xc4d7fa},
+    };
+    const p=palettes[area];
+    const horizon=h*.32;
+    // Full-bleed ground hides pre-drawn giant characters in the original art.
+    grid.fillStyle(p.dark,1);grid.fillRect(0,horizon,w,h-horizon);
+    grid.fillStyle(p.base,1);grid.fillRect(0,h*.36,w,h*.56);
+    grid.fillStyle(p.dark,.94);grid.fillRect(0,h*.92,w,h*.08);
+    // Parapet and pillars define the transition between skyline and walkable floor.
+    grid.fillStyle(p.edge,.94);grid.fillRect(0,horizon,w,h*.014);
+    grid.fillStyle(p.dark,1);grid.fillRect(0,horizon+h*.014,w,h*.02);
+    grid.lineStyle(2,p.accent,.56);grid.lineBetween(0,horizon,w,horizon);
     const tw=w*.95/TILE_COLUMNS,th=h*(TILE_MAX_Y-TILE_MIN_Y)/TILE_ROWS;
+    const kinds=[p.base,p.light,p.base,p.dark,p.light,p.base];
     for(const tile of createTiles(area)){
-      const x=w*(tile.x)-tw/2,y=h*(tile.y)-th/2;
-      grid.fillStyle(colors[tile.kind],tile.blocked?.38:.16);
-      grid.fillRect(x,y,tw-.6,th-.6);
-      if(tile.kind===2){grid.lineStyle(.7,0xf3dcaa,.32);grid.strokeRect(x+2,y+2,tw-4,th-4);}
-      if(tile.blocked){grid.lineStyle(1,0xd6b57b,.42);grid.strokeRect(x,y,tw-.5,th-.5);}
+      const x=w*tile.x-tw/2,y=h*tile.y-th/2;
+      // Staggered seams, fine grout and occasional worn brass inlays.
+      const color=kinds[tile.kind];
+      grid.fillStyle(color,tile.blocked?.94:.83);
+      grid.fillRect(x+.5,y+.5,Math.max(1,tw-1),Math.max(1,th-1));
+      grid.lineStyle(.65,p.dark,.4);
+      grid.lineBetween(x+1,y+th-1,x+tw-1,y+th-1);
+      if(tile.kind===2 && !tile.blocked){
+        grid.lineStyle(.75,p.accent,.22);
+        grid.lineBetween(x+tw*.28,y+th*.48,x+tw*.7,y+th*.48);
+      }
+    }
+    // Physically blocked places are crates and stone structures, not debug boxes.
+    for(const obstacle of OBSTACLES[area]){
+      const x=obstacle.x*w,y=obstacle.y*h,bw=obstacle.w*w,bh=obstacle.h*h;
+      grid.fillStyle(0x102b38,.46);grid.fillEllipse(x+bw*.52,y+bh*.94,bw*1.12,bh*.34);
+      grid.fillStyle(p.dark,1);grid.fillRect(x,y,bw,bh*.78);
+      grid.fillStyle(p.base,1);grid.fillRect(x+4,y+3,bw-8,bh*.78-6);
+      grid.lineStyle(2,p.accent,.66);grid.strokeRect(x+3,y+3,bw-6,bh*.78-6);
+      grid.lineStyle(1,p.edge,.5);
+      grid.lineBetween(x+6,y+5,x+bw-6,y+bh*.78-5);
+      grid.lineBetween(x+bw-6,y+5,x+6,y+bh*.78-5);
+    }
+    // Lamps mark the edge of the plaza, giving characters a grounded scale.
+    for(let i=0;i<8;i++){
+      const x=w*(.045+i*.13);
+      grid.fillStyle(p.dark,1);grid.fillRect(x-3,horizon-24,6,30);
+      grid.fillStyle(p.accent,.95);grid.fillCircle(x,horizon-24,4);
+      grid.fillStyle(p.accent,.12);grid.fillCircle(x,horizon-24,12);
     }
   }
   private drawExplore(w: number, h: number): void {

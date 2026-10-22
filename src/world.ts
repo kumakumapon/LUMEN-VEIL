@@ -116,11 +116,15 @@ export class WorldScene extends Phaser.Scene {
     for(const id of FIELD_ACTORS)for(const facing of FACINGS)for(let frame=0;frame<4;frame++){
       const key=fieldTextureKey(id,facing,frame);
       if(this.textures.exists(key))continue;
-      const canvas=this.textures.createCanvas(key,80,112);
+      // Render at 2x native resolution for cleaner edges on high-DPI screens.
+      const canvas=this.textures.createCanvas(key,160,224);
       if(!canvas)continue;
+      canvas.context.setTransform(2,0,0,2,0,0);
+      canvas.context.imageSmoothingEnabled=true;
       drawFieldFigure(canvas.context,id,facing,frame);
       canvas.refresh();
     }
+    this.game.canvas.dataset.spriteResolution='160x224';
   }
   private relayout(): void {
     // RESIZE fires when HUD/layout height changes. Rebuild scenery but preserve
@@ -259,7 +263,7 @@ export class WorldScene extends Phaser.Scene {
       const [px,py] = positions[i];
       const key=fieldTextureKey(hero.id as FieldActor,'down',0);
       const sprite=this.track(this.add.sprite(px*w,py*h,key).setDepth(7-i).setOrigin(.5,1));
-      sprite.setScale(w<550?.68:.88);
+      sprite.setScale(w<550?.34:.44);
       this.facingBySprite.set(sprite,'down');
       return [sprite];
     });
@@ -306,7 +310,7 @@ export class WorldScene extends Phaser.Scene {
     for(const [i,id] of actors[area].entries()){
       const pos=SITES[area][id];if(!pos)continue;
       const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,fieldTextureKey(id,'down',0)).setOrigin(.5,1).setDepth(6));
-      sprite.setScale(w<550?.65:.79);
+      sprite.setScale(w<550?.325:.395);
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
       const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));

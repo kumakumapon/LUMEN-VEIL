@@ -79,6 +79,7 @@ export class WorldScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#0b1b30');
     this.generateWalkFrames();
+    this.generateFieldTextures();
     for (const k of ['W', 'A', 'S', 'D', 'UP', 'DOWN', 'LEFT', 'RIGHT']) {
       const key = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes[k as keyof typeof Phaser.Input.Keyboard.KeyCodes], false);
       if (key) this.keys.push(key);
@@ -110,6 +111,39 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  private generateFieldTextures():void {
+    // The original battle illustrations include transparent poster margins.
+    // Trim those margins for the field instead of rendering a tiny person.
+    for(const id of ['noel','sena','ritz']){
+      const sourceKey='battle-'+id,targetKey='field-'+id;
+      if(!this.textures.exists(sourceKey)||this.textures.exists(targetKey))continue;
+      const source=this.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
+      if(!source.width||!source.height)continue;
+      const scan=document.createElement('canvas');
+      scan.width=source.width;scan.height=source.height;
+      const ctx=scan.getContext('2d',{willReadFrequently:true});
+      if(!ctx)continue;
+      ctx.drawImage(source,0,0);
+      const rgba=ctx.getImageData(0,0,source.width,source.height).data;
+      let left=source.width,top=source.height,right=-1,bottom=-1;
+      for(let y=0;y<source.height;y+=2)for(let x=0;x<source.width;x+=2){
+        if(rgba[(y*source.width+x)*4+3]<22)continue;
+        if(x<left)left=x;if(x>right)right=x;
+        if(y<top)top=y;if(y>bottom)bottom=y;
+      }
+      if(right<left||bottom<top)continue;
+      const cropW=Math.min(source.width-left,right-left+3);
+      const cropH=Math.min(source.height-top,bottom-top+3);
+      const margin=Math.max(4,Math.round(cropW*.045));
+      const scale=Math.min(1,400/(cropH+margin*2));
+      const texture=this.textures.createCanvas(targetKey,
+        Math.ceil((cropW+margin*2)*scale),Math.ceil((cropH+margin*2)*scale));
+      if(!texture)continue;
+      texture.context.drawImage(source,left,top,cropW,cropH,
+        margin*scale,margin*scale,cropW*scale,cropH*scale);
+      texture.refresh();
+    }
+  }
   private generateWalkFrames(): void {
     for (const hero of HEROES) for (let i = 0; i < 4; i++) {
       const key = `${hero.id}-step-${i}`;
@@ -265,7 +299,7 @@ export class WorldScene extends Phaser.Scene {
     this.avatars = s.party.flatMap((hero, i) => {
       if (i === 2 && !s.flags.ritz) return [];
       const [px,py] = positions[i];
-      const artKey='battle-'+hero.id;
+      const artKey=this.textures.exists('field-'+hero.id)?'field-'+hero.id:'battle-'+hero.id;
       const illustrated=this.textures.exists(artKey);
       const sprite = this.track(this.add.sprite(px*w,py*h,illustrated?artKey:`${hero.id}-step-0`).setDepth(7-i).setOrigin(.5,1));
       if(illustrated){
@@ -392,7 +426,7 @@ export class WorldScene extends Phaser.Scene {
     else this.animateWalk(Phaser.Math.Clamp(x,20,w-20),Phaser.Math.Clamp(y,h*.39,h*.82));
   }
   private setFieldFrame(sprite:Phaser.GameObjects.Sprite,id:string,time:number,moving:boolean):void {
-    if(this.textures.exists('battle-'+id)){
+    if(this.textures.exists('field-'+id)||this.textures.exists('battle-'+id)){
       sprite.setAngle(moving&&!this.reducesMotion?Math.sin(time/135)*2.5:0);
     }else{
       sprite.setTexture(`${id}-step-${moving&&!this.reducesMotion?Math.floor(time/110)%4:0}`);

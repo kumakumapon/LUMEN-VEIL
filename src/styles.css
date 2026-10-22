@@ -154,3 +154,19 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
  .journey-buttons button{min-height:32px;padding:6px 9px}
  .field-feedback{bottom:34%;font-size:11px}
 }
+
+
+/* A single legible menu replaces the tiny scrolling toolbar on narrow screens. */
+#btn-main-menu{display:none}
+.adventure-menu{display:grid;gap:8px}
+.adventure-menu>p{margin:0 0 8px;color:#c7dce2;font-size:12px;line-height:1.7}
+.adventure-menu-item{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;padding:13px 16px;min-height:60px;text-align:left;background:#102a3f;border:1px solid #b5cdd083;border-radius:9px;color:#f4f4ed;cursor:pointer}
+.adventure-menu-item strong{font-size:14px}
+.adventure-menu-item small{font-size:11px;color:#b8cfd3}
+.adventure-menu-item:disabled{opacity:.4;cursor:not-allowed}
+.adventure-menu-item:focus-visible{outline:3px solid #9ee7e0}
+@media(max-width:730px){
+ .toolbar button:not(#btn-main-menu){display:none!important}
+ .toolbar #btn-main-menu{display:inline-flex;align-items:center;justify-content:center;min-width:116px;min-height:42px;font-size:13px;border:1px solid #d9c69a9c;border-radius:8px;background:#123750;color:#f8f4e7}
+ .toolbar{overflow:visible;justify-content:center}
+}

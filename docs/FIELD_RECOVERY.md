@@ -12,3 +12,14 @@
 - Improve the consistency and silhouette of field characters without replacing production battle art.
 - Keep v1 save schema, expansion/living sidecars, GitHub Pages path and all existing gameplay.
 - Validate real input on desktop and mobile; avoid asserting success until CI is green.
+
+## Implementation notes
+- A* never returns the current grid-cell center as a fallback; unreachable routes show a message and do not rewind the player.
+- The Phaser scene keeps normalized field coordinates through resize and phase redraws; new-game/load explicitly reset the temporary field position. Route retargeting and manual-key override are supported.
+- The cinematic background remains visible above the horizon; a solid, detailed courtyard covers the lower half so field characters stand on a plausible walkable surface rather than in midair.
+- Production full-body battle artwork is cropped to its non-transparent silhouette for field rendering, with the original procedural sprites as fallback. This is a presentation improvement, not a complete directional sprite sheet.
+- An in-field objective panel, automatic route guidance, controls help and a single large mobile adventure menu reduce the need to guess the next step.
+- All new field coordinates and help state are ephemeral; existing v1/sidecar save keys and GitHub Pages URL remain unchanged.
+
+## Follow-up art direction
+A future art-focused PR should create consistent four-direction walk-cycle sprite sheets, unique NPC costumes, and location-specific HD-2D ground textures. Static illustrations with a slight sway are not equivalent to true walk animation.

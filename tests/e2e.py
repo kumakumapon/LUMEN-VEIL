@@ -44,6 +44,31 @@ with sync_playwright() as p:
     expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
+    expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
+    page.locator('#btn-guide-help').click()
+    expect(page.locator('#modal-title')).to_have_text('操作ガイド')
+    expect(page.locator('.control-guide')).to_contain_text('WASD')
+    page.locator('#btn-close').click()
+    canvas = page.locator('#phaser-stage canvas')
+    page.wait_for_function("!!document.querySelector('#phaser-stage canvas')?.dataset.playerX")
+    before_x = float(canvas.get_attribute('data-player-x'))
+    # Hold a real movement key; the player must move and remain there.
+    page.keyboard.down('d')
+    page.wait_for_timeout(450)
+    page.keyboard.up('d')
+    page.wait_for_timeout(100)
+    moved_x = float(canvas.get_attribute('data-player-x'))
+    assert moved_x > before_x + .01, f'Player failed to walk: {before_x} -> {moved_x}'
+    page.set_viewport_size({'width': 1200, 'height': 800})
+    page.wait_for_timeout(450)
+    resized_x = float(canvas.get_attribute('data-player-x'))
+    assert abs(resized_x - moved_x) < .035, f'Player teleported on resize: {moved_x} -> {resized_x}'
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    page.wait_for_timeout(300)
+    # A beginner can follow the main quest without the legacy choice list.
+    page.locator('#btn-guide-route').click()
+    expect(page.locator('#journey-goal')).to_have_text('消えた案内板を記憶灯で調べる', timeout=20000)
+    page.screenshot(path=str(OUT / 'guided-field-desktop.png'), full_page=True)
     # Optional exploration, multi-line NPC conversations, equipment and XP sidecar.
     page.locator('#btn-quests').click()
     expect(page.locator('#modal-title')).to_have_text('依頼の記録')
@@ -137,6 +162,8 @@ with sync_playwright() as p:
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     mobile.screenshot(path=str(OUT / 'title-mobile.png'), full_page=True)
     mobile.locator('#btn-start').tap()
+    expect(mobile.locator('#journey-guide')).to_be_visible()
+    expect(mobile.locator('#btn-guide-route')).to_be_visible()
     expect(mobile.locator('#hotspots')).to_be_hidden()
     expect(mobile.locator('#btn-nearby')).to_be_visible()
     mobile.locator('#btn-nearby').tap()

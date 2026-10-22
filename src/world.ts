@@ -329,7 +329,7 @@ export class WorldScene extends Phaser.Scene {
       return [sprite];
     });
     this.avatarShadows=this.avatars.map(sprite=>
-      this.track(this.add.ellipse(sprite.x,sprite.y+4,w<550?26:39,w<550?7:11,0x08131f,.58).setDepth(6))
+      this.track(this.add.ellipse(sprite.x,sprite.y+4,w<550?26:39,w<550?7:11,0x08131f,.58).setDepth(4.8))
     );
     this.drawNpcPatrols(w,h,s.area);
     for (const obstacle of OBSTACLES[s.area]) {

@@ -53,6 +53,21 @@ export function drawFieldFigure(c:CanvasRenderingContext2D,id:FieldActor,dir:Fac
  if(v.skirt)poly(c,[[-18,51],[17,51],[24,81],[-23,81]],v.coat,v.accent);
  else poly(c,[[-17,45],[17,45],[20,78],[4,82],[-20,78]],v.coat,v.accent);
  poly(c,[[-17,44],[-12,33],[10,33],[18,45],[16,63],[-16,63]],v.coat,v.accent);
+ // Fabric folds and side lighting add material depth without changing silhouettes.
+ c.save();
+ c.globalAlpha=.35;
+ for(let n=0;n<3;n++){
+   const px=-10+n*10;
+   line(c,px,55,px+(n-1)*3,76,n===1?'#f8e6c4':v.shadow,n===1?1.3:2);
+ }
+ c.restore();
+ if(v.cape){
+   line(c,-19,48,-21-gait,81,v.accent,1.2);
+   line(c,17,46,18+gait,78,v.accent,1.2);
+ }
+ if(v.skirt){
+   line(c,-17,79,20,79,v.accent,2);
+ }
  // Sleeves: a walk cycle, not a static rotating picture.
  const arm=gait*5;
  line(c,-16,43,-19-arm,68,v.shadow,9);
@@ -75,6 +90,15 @@ export function drawFieldFigure(c:CanvasRenderingContext2D,id:FieldActor,dir:Fac
  if(v.hat==='cap'){ellipse(c,0,11,17,8,'#2c4c5e');line(c,0,14,18,14,'#edc783',4);}
  if(v.hat==='hood'){poly(c,[[-17,22],[-15,5],[0,-1],[16,5],[18,22],[14,16],[0,5],[-14,17]],v.shadow,v.accent);}
  if(v.hat==='crown'){line(c,-11,11,12,11,'#86d4e7',3);ellipse(c,0,6,4,5,'#b4ebf3');}
+ // Small embroidered seams, jewelry and reflected light echo the painterly
+ // portraits while retaining the readable proportions of an HD-2D sprite.
+ c.save();c.globalAlpha=.65;
+ line(c,-13,41,-9,38,'#fff1d6',1.4);
+ line(c,12,42,8,39,v.accent,1.6);
+ if(id==='merchant')ellipse(c,-11,46,2.6,2.6,'#e7bf88');
+ if(id==='navigator')line(c,-9,20,9,20,'#e3c990',1.6);
+ if(id==='scholar')ellipse(c,0,46,3.5,3.5,'#ddd1f5');
+ c.restore();
  // Distinct profession accessories.
  if(v.tool==='sword'){line(c,19,49,26,83,'#d3dce1',3);line(c,18,53,29,52,v.accent,4);}
  if(v.tool==='staff'){line(c,22,42,27,94,'#dfcfb2',3);ellipse(c,21,37,7,8,'#8bd7ec');}

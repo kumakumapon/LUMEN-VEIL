@@ -130,3 +130,43 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 }
 
 .game-screen:not(.explore-mode) .field-actions{display:none}
+
+
+/* Guided first five minutes: one visible objective, one obvious next action. */
+.journey-guide{position:absolute;z-index:6;right:clamp(12px,3vw,44px);top:clamp(68px,10vh,100px);width:min(315px,38vw);padding:14px 16px;background:linear-gradient(140deg,#081b2eea,#12354ddf);border:1px solid #d8c79591;border-radius:12px;box-shadow:0 14px 32px #0009;color:#f2f6f3;backdrop-filter:blur(8px)}
+.journey-guide[hidden],.field-feedback[hidden]{display:none}
+.journey-eyebrow{display:block;color:#f2dba5;font:10px Georgia,serif;letter-spacing:.12em;margin-bottom:8px}
+.journey-guide strong{display:block;font-size:15px;line-height:1.5}
+.journey-guide p{font-size:11px;line-height:1.7;color:#d6e8e9;margin:8px 0 10px}
+.journey-buttons{display:flex;flex-wrap:wrap;gap:7px}
+.journey-buttons button{font-size:11px;padding:8px 10px;border-radius:6px;border:1px solid #e3d09b80;background:#1c4c61;color:#f9f5e7;min-height:38px;cursor:pointer}
+.journey-buttons button:focus-visible{outline:3px solid #9de5e0;outline-offset:2px}
+.journey-buttons button:disabled{opacity:.5}
+.field-feedback{position:absolute;z-index:7;left:50%;bottom:35%;transform:translateX(-50%);padding:10px 15px;border-radius:8px;background:#152c40ed;color:#fff1c7;border:1px solid #d7c595;text-align:center;font-size:12px;max-width:80vw}
+.game-screen:not(.explore-mode) .journey-guide,.game-screen:not(.explore-mode) .field-feedback{display:none}
+.control-guide h3{margin:16px 0 4px;color:#f0d8a0;font-size:14px}
+.control-guide p{margin:0 0 12px;font-size:13px;line-height:1.8}
+@media(max-width:730px){
+ .journey-guide{left:12px;right:12px;top:108px;width:auto;max-width:calc(100% - 24px);padding:9px 12px}
+ .journey-eyebrow{font-size:9px;margin-bottom:3px}
+ .journey-guide strong{font-size:12px}
+ .journey-guide p{font-size:10px;margin:4px 0 6px;line-height:1.4}
+ .journey-buttons button{min-height:32px;padding:6px 9px}
+ .field-feedback{bottom:34%;font-size:11px}
+}
+
+
+/* A single legible menu replaces the tiny scrolling toolbar on narrow screens. */
+#btn-main-menu{display:none}
+.adventure-menu{display:grid;gap:8px}
+.adventure-menu>p{margin:0 0 8px;color:#c7dce2;font-size:12px;line-height:1.7}
+.adventure-menu-item{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;padding:13px 16px;min-height:60px;text-align:left;background:#102a3f;border:1px solid #b5cdd083;border-radius:9px;color:#f4f4ed;cursor:pointer}
+.adventure-menu-item strong{font-size:14px}
+.adventure-menu-item small{font-size:11px;color:#b8cfd3}
+.adventure-menu-item:disabled{opacity:.4;cursor:not-allowed}
+.adventure-menu-item:focus-visible{outline:3px solid #9ee7e0}
+@media(max-width:730px){
+ .toolbar button:not(#btn-main-menu){display:none!important}
+ .toolbar #btn-main-menu{display:inline-flex;align-items:center;justify-content:center;min-width:116px;min-height:42px;font-size:13px;border:1px solid #d9c69a9c;border-radius:8px;background:#123750;color:#f8f4e7}
+ .toolbar{overflow:visible;justify-content:center}
+}

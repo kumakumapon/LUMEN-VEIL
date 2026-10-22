@@ -3,11 +3,10 @@ import { activeHero } from '../web/model.mjs';
 import { battleArtLayout, fitArtwork } from './battle-art';
 import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
-import { createTiles, TILE_COLUMNS, TILE_ROWS, TILE_MIN_Y, TILE_MAX_Y } from './tilemaps';
 
 type Point = { x: number; y: number };
 const SITES: Record<Area, Record<string, Point>> = {
-  harbor: { sena: { x: .69, y: .57 }, sign: { x: .50, y: .46 }, letter: { x: .35, y: .70 }, 'to-corridor': { x: .88, y: .57 } },
+  harbor: { sena: { x: .69, y: .57 }, sign: { x: .50, y: .46 }, letter: { x: .35, y: .70 }, 'to-corridor': { x: .88, y: .57 }, 'to-market': { x:.16,y:.56 }, 'to-observatory': { x:.77,y:.42 } },
   corridor: { ritz: { x: .75, y: .55 }, lamp: { x: .45, y: .46 }, badge: { x: .29, y: .66 }, key: { x: .56, y: .69 }, 'to-vault': { x: .90, y: .48 }, 'to-harbor': { x: .14, y: .60 } },
   vault: { boss: { x: .41, y: .47 }, 'to-dock': { x: .84, y: .61 }, 'to-corridor': { x: .13, y: .61 } },
   dock: { escape: { x: .80, y: .53 }, 'to-vault': { x: .17, y: .57 } },
@@ -33,6 +32,7 @@ export class WorldScene extends Phaser.Scene {
   private sceneKey = '';
   private bg: Phaser.GameObjects.Image | null = null;
   private avatars: Phaser.GameObjects.Sprite[] = [];
+  private avatarShadows: Phaser.GameObjects.Ellipse[] = [];
   private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween}[] = [];
   private foe: Phaser.GameObjects.Container | null = null;
   private battleActors: { heroId: string; sprite: Phaser.GameObjects.Sprite; ring: Phaser.GameObjects.Ellipse }[] = [];
@@ -51,14 +51,24 @@ export class WorldScene extends Phaser.Scene {
   private cancelCallback: () => void;
   private interactCallback: () => void;
   private proximityId: string | null = null;
+  private walkGeneration = 0;
+  private lastFieldPosition: { area: Area; x: number; y: number } | null = null;
+  private drawnArea: Area | null = null;
+  private drawnSize = { width: 960, height: 420 };
+  private resetCallback: () => void;
 
   constructor() {
     super({ key: 'World' });
     this.pointerCallback = pointer => this.pointAndWalk(pointer);
-    this.cancelCallback = () => { this.avatars.forEach(a=>this.tweens.killTweensOf(a));this.isWalking=false; };
+    this.cancelCallback = () => {
+      this.walkGeneration++;
+      this.avatars.forEach(a=>this.tweens.killTweensOf(a));
+      this.isWalking=false;
+    };
     this.interactCallback = () => this.interactNearby();
+    this.resetCallback = () => { this.lastFieldPosition=null;this.drawnArea=null;this.sceneKey='';this.draw(); };
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
-    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail);
+    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail,true);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
     this.settingsCallback = event => { this.reducesMotion = !!(event as CustomEvent<{ reduceMotion: boolean }>).detail.reduceMotion; };
   }
@@ -74,6 +84,7 @@ export class WorldScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor('#0b1b30');
     this.generateWalkFrames();
+    this.generateFieldTextures();
     for (const k of ['W', 'A', 'S', 'D', 'UP', 'DOWN', 'LEFT', 'RIGHT']) {
       const key = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes[k as keyof typeof Phaser.Input.Keyboard.KeyCodes], false);
       if (key) this.keys.push(key);
@@ -84,6 +95,7 @@ export class WorldScene extends Phaser.Scene {
     window.addEventListener('lv:render', this.renderCallback);
     window.addEventListener('lv:cancel-walk', this.cancelCallback);
     window.addEventListener('lv:interact-nearest', this.interactCallback);
+    window.addEventListener('lv:reset-field', this.resetCallback);
     window.addEventListener('lv:walk', this.walkCallback);
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
@@ -96,6 +108,7 @@ export class WorldScene extends Phaser.Scene {
       window.removeEventListener('lv:render', this.renderCallback);
       window.removeEventListener('lv:cancel-walk', this.cancelCallback);
       window.removeEventListener('lv:interact-nearest', this.interactCallback);
+      window.removeEventListener('lv:reset-field', this.resetCallback);
       window.removeEventListener('lv:walk', this.walkCallback);
       window.removeEventListener('lv:combat', this.combatCallback);
       window.removeEventListener('lv:settings', this.settingsCallback);
@@ -103,6 +116,39 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  private generateFieldTextures():void {
+    // The original battle illustrations include transparent poster margins.
+    // Trim those margins for the field instead of rendering a tiny person.
+    for(const id of ['noel','sena','ritz']){
+      const sourceKey='battle-'+id,targetKey='field-'+id;
+      if(!this.textures.exists(sourceKey)||this.textures.exists(targetKey))continue;
+      const source=this.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
+      if(!source.width||!source.height)continue;
+      const scan=document.createElement('canvas');
+      scan.width=source.width;scan.height=source.height;
+      const ctx=scan.getContext('2d',{willReadFrequently:true});
+      if(!ctx)continue;
+      ctx.drawImage(source,0,0);
+      const rgba=ctx.getImageData(0,0,source.width,source.height).data;
+      let left=source.width,top=source.height,right=-1,bottom=-1;
+      for(let y=0;y<source.height;y+=2)for(let x=0;x<source.width;x+=2){
+        if(rgba[(y*source.width+x)*4+3]<22)continue;
+        if(x<left)left=x;if(x>right)right=x;
+        if(y<top)top=y;if(y>bottom)bottom=y;
+      }
+      if(right<left||bottom<top)continue;
+      const cropW=Math.min(source.width-left,right-left+3);
+      const cropH=Math.min(source.height-top,bottom-top+3);
+      const margin=Math.max(4,Math.round(cropW*.045));
+      const scale=Math.min(1,400/(cropH+margin*2));
+      const texture=this.textures.createCanvas(targetKey,
+        Math.ceil((cropW+margin*2)*scale),Math.ceil((cropH+margin*2)*scale));
+      if(!texture)continue;
+      texture.context.drawImage(source,left,top,cropW,cropH,
+        margin*scale,margin*scale,cropW*scale,cropH*scale);
+      texture.refresh();
+    }
+  }
   private generateWalkFrames(): void {
     for (const hero of HEROES) for (let i = 0; i < 4; i++) {
       const key = `${hero.id}-step-${i}`;
@@ -137,10 +183,15 @@ export class WorldScene extends Phaser.Scene {
       canvas.refresh();
     }
   }
-  private relayout(): void { if (this.state) { this.sceneKey = ''; this.draw(); } }
+  private relayout(): void {
+    // RESIZE fires when HUD/layout height changes. Rebuild scenery but preserve
+    // the player position in normalized map coordinates.
+    if (this.state) this.draw();
+  }
   private wipe(): void {
+    this.walkGeneration++;
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
-    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
+    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.avatarShadows=[]; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
     this.proximityId=null;
     window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id:null,name:null}}));
@@ -154,10 +205,16 @@ export class WorldScene extends Phaser.Scene {
     image.setPosition(w / 2, h / 2);
   }
   private draw(): void {
-    this.wipe();
     const state = this.state;
+    if(this.avatars[0] && this.drawnArea){
+      this.lastFieldPosition={area:this.drawnArea,x:this.avatars[0].x/this.drawnSize.width,y:this.avatars[0].y/this.drawnSize.height};
+    }
+    this.wipe();
     if (!state || state.phase === 'ending') return;
     const w = this.scale.width, h = this.scale.height;
+    this.drawnSize={width:Math.max(w,1),height:Math.max(h,1)};
+    this.drawnArea=state.area;
+    if(this.lastFieldPosition?.area!==state.area)this.lastFieldPosition=null;
     const inBattle=state.phase==='battle'||state.phase==='defeat';
     const key=inBattle&&this.textures.exists('battle-arena')?'battle-arena':ASSET_NAMES[state.area];
     if(inBattle)this.game.canvas.dataset.battleBackground=key;
@@ -183,42 +240,127 @@ export class WorldScene extends Phaser.Scene {
     }
   }
   private drawTilemap(w:number,h:number,area:Area):void {
+    // The original cinematic concept paintings show distant bridges and people
+    // in midair. They are *backdrops*, not walkable maps. Build an opaque stone
+    // courtyard over their lower section so avatars always have a visible floor.
     const grid=this.track(this.add.graphics().setDepth(1));
-    const colors=[0x7b95a3,0x789a83,0xb8a477,0x263847,0x477b94,0x8b7461];
-    const tw=w*.95/TILE_COLUMNS,th=h*(TILE_MAX_Y-TILE_MIN_Y)/TILE_ROWS;
-    for(const tile of createTiles(area)){
-      const x=w*(tile.x)-tw/2,y=h*(tile.y)-th/2;
-      grid.fillStyle(colors[tile.kind],tile.blocked?.38:.16);
-      grid.fillRect(x,y,tw-.6,th-.6);
-      if(tile.kind===2){grid.lineStyle(.7,0xf3dcaa,.32);grid.strokeRect(x+2,y+2,tw-4,th-4);}
-      if(tile.blocked){grid.lineStyle(1,0xd6b57b,.42);grid.strokeRect(x,y,tw-.5,th-.5);}
+    const palettes:Record<Area,{base:number;light:number;dark:number;edge:number;accent:number}>={
+      harbor:{base:0x455f6a,light:0x68818a,dark:0x314854,edge:0x9ab5b6,accent:0xd9bf8c},
+      corridor:{base:0x394e56,light:0x556c70,dark:0x283b43,edge:0x8da9aa,accent:0xd5b88b},
+      vault:{base:0x303e50,light:0x485e6e,dark:0x202e3f,edge:0x9caab8,accent:0xb9d8e5},
+      dock:{base:0x466976,light:0x71939a,dark:0x31515f,edge:0x9bc4c9,accent:0xe1d1a5},
+      market:{base:0x6b6258,light:0x908277,dark:0x504c47,edge:0xc3b49a,accent:0xf0d59b},
+      observatory:{base:0x3e4b69,light:0x62728f,dark:0x2d3b56,edge:0xa9b8d5,accent:0xc4d7fa},
+    };
+    const p=palettes[area];
+    const horizon=h*.32;
+    // Full-bleed ground hides pre-drawn giant characters in the original art.
+    grid.fillStyle(p.dark,1);grid.fillRect(0,horizon,w,h-horizon);
+    grid.fillStyle(p.base,1);grid.fillRect(0,h*.36,w,h*.56);
+    grid.fillStyle(p.dark,.94);grid.fillRect(0,h*.92,w,h*.08);
+    // Parapet and pillars define the transition between skyline and walkable floor.
+    grid.fillStyle(p.edge,.94);grid.fillRect(0,horizon,w,h*.014);
+    grid.fillStyle(p.dark,1);grid.fillRect(0,horizon+h*.014,w,h*.02);
+    grid.lineStyle(2,p.accent,.56);grid.lineBetween(0,horizon,w,horizon);
+    // Large staggered paving stones read as a town square rather than a debug
+    // collision grid. The logical 40x20 navigation mesh stays unchanged.
+    const stoneRows=17,stoneCols=27,top=h*.36,bottom=h*.92;
+    const stoneW=w/stoneCols,stoneH=(bottom-top)/stoneRows;
+    for(let row=0;row<stoneRows;row++){
+      const offset=row%2?.5:0;
+      for(let col=-1;col<=stoneCols;col++){
+        const x=(col+offset)*stoneW,y=top+row*stoneH;
+        const variation=(col*13+row*7+(col*row)%5+41)%11;
+        const color=variation<2?p.light:variation<4?p.dark:p.base;
+        grid.fillStyle(color,.84);
+        grid.fillRect(x+1,y+1,stoneW-2,stoneH-2);
+        grid.lineStyle(1,p.edge,.14+row/stoneRows*.11);
+        grid.strokeRect(x+1,y+1,stoneW-2,stoneH-2);
+        if(variation===7){
+          grid.lineStyle(1,p.accent,.16);
+          grid.lineBetween(x+stoneW*.32,y+stoneH*.6,x+stoneW*.62,y+stoneH*.4);
+        }
+      }
+    }
+    // A faint central sunlit avenue gives depth and leads the eye into town.
+    grid.fillStyle(p.light,.12);
+    grid.fillTriangle(w*.42,h*.36,w*.58,h*.36,w*.95,h*.92);
+    grid.fillTriangle(w*.42,h*.36,w*.05,h*.92,w*.95,h*.92);
+    grid.lineStyle(1.2,p.accent,.19);
+    for(let i=-5;i<=5;i++){
+      grid.lineBetween(w*(.5+i*.018),h*.36,w*(.5+i*.10),h*.92);
+    }
+    // Physically blocked places are crates and stone structures, not debug boxes.
+    for(const obstacle of OBSTACLES[area]){
+      const x=obstacle.x*w,y=obstacle.y*h,bw=obstacle.w*w,bh=obstacle.h*h;
+      grid.fillStyle(0x102b38,.46);grid.fillEllipse(x+bw*.52,y+bh*.94,bw*1.12,bh*.34);
+      grid.fillStyle(p.dark,1);grid.fillRect(x,y,bw,bh*.78);
+      grid.fillStyle(p.base,1);grid.fillRect(x+4,y+3,bw-8,bh*.78-6);
+      grid.lineStyle(2,p.accent,.66);grid.strokeRect(x+3,y+3,bw-6,bh*.78-6);
+      grid.lineStyle(1,p.edge,.5);
+      grid.lineBetween(x+6,y+5,x+bw-6,y+bh*.78-5);
+      grid.lineBetween(x+bw-6,y+5,x+6,y+bh*.78-5);
+    }
+    // Lamps mark the edge of the plaza, giving characters a grounded scale.
+    for(let i=0;i<8;i++){
+      const x=w*(.045+i*.13);
+      grid.fillStyle(p.dark,1);grid.fillRect(x-3,horizon-24,6,30);
+      grid.fillStyle(p.accent,.95);grid.fillCircle(x,horizon-24,4);
+      grid.fillStyle(p.accent,.12);grid.fillCircle(x,horizon-24,12);
     }
   }
   private drawExplore(w: number, h: number): void {
     const s = this.state;
     if (!s) return;
-    const positions = [ [.19,.73], [.13,.76], [.25,.77] ];
+    const last=this.lastFieldPosition?.area===s.area?this.lastFieldPosition:null;
+    const start=last?[last.x,last.y]:[.19,.73];
+    const positions = [start,[start[0]-.06,start[1]+.03],[start[0]+.06,start[1]+.04]];
     this.avatars = s.party.flatMap((hero, i) => {
       if (i === 2 && !s.flags.ritz) return [];
       const [px,py] = positions[i];
-      const sprite = this.track(this.add.sprite(px * w, py * h, `${hero.id}-step-0`).setDepth(7-i).setOrigin(.5, 1).setScale(Math.max(.8, Math.min(1.42, w / 690))));
+      const artKey=this.textures.exists('field-'+hero.id)?'field-'+hero.id:'battle-'+hero.id;
+      const illustrated=this.textures.exists(artKey);
+      const sprite = this.track(this.add.sprite(px*w,py*h,illustrated?artKey:`${hero.id}-step-0`).setDepth(7-i).setOrigin(.5,1));
+      if(illustrated){
+        const img=sprite.texture.getSourceImage() as HTMLImageElement;
+        const maxW=w<550?55:82,maxH=w<550?96:138;
+        sprite.setScale(Math.min(maxW/Math.max(img.width,1),maxH/Math.max(img.height,1)));
+      }else sprite.setScale(Math.max(.8,Math.min(1.42,w/690)));
       return [sprite];
     });
+    this.avatarShadows=this.avatars.map(sprite=>
+      this.track(this.add.ellipse(sprite.x,sprite.y+4,w<550?26:39,w<550?7:11,0x08131f,.58).setDepth(4.8))
+    );
     this.drawNpcPatrols(w,h,s.area);
     for (const obstacle of OBSTACLES[s.area]) {
       this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
     }
+    const storyGoal=!s.flags.sena?'sena':!s.flags.sign?'sign':!s.flags.ritz?'ritz':!s.flags.lamp?'lamp':!s.flags.key?'key':!s.flags.boss?'boss':'escape';
+    const goalArea:Record<string,Area>={sena:'harbor',sign:'harbor',ritz:'corridor',lamp:'corridor',key:'corridor',boss:'vault',escape:'dock'};
+    const highlighted=SITES[s.area][storyGoal]?storyGoal:
+      s.area==='market'||s.area==='observatory'?'to-harbor':
+      s.area==='harbor'?'to-corridor':
+      s.area==='corridor'?(goalArea[storyGoal]==='harbor'?'to-harbor':'to-vault'):
+      s.area==='vault'?(goalArea[storyGoal]==='dock'?'to-dock':'to-corridor'):'to-vault';
     for (const [id, coords] of Object.entries(SITES[s.area])) {
       const x = Math.min(w-26, Math.max(26, coords.x * w)), y = Math.min(h-35, Math.max(52, coords.y * h));
-      const ring = this.add.circle(x, y, w < 500 ? 13 : 19, 0x75cecd, .14).setStrokeStyle(1.7, 0xece9c6, .85).setDepth(4);
-      const dot = this.add.circle(x, y, 4, 0xf0deac, .95).setDepth(5);
-      const name = this.add.text(x, y - 33, LABELS[id] || id, { fontFamily: 'Noto Sans JP, sans-serif', fontSize: w < 550 ? '10px' : '12px', color: '#f4f6ec', backgroundColor: '#061827c9', padding: {x:5,y:3} }).setOrigin(.5,.5).setDepth(6);
+      const main=id===highlighted;
+      const ring = this.add.circle(x, y, w < 500 ? 13 : 19, main?0xe9b96c:0x75cecd, main?.25:.06)
+        .setStrokeStyle(main?2.6:1.1,main?0xffe0a5:0x9cc8c7,main?1:.48).setDepth(4);
+      const dot = this.add.circle(x, y, main?5:3, main?0xffe0a5:0xa2d6d3, main?1:.55).setDepth(5);
+      const name = this.add.text(x, y - 33, LABELS[id] || id, { fontFamily: 'Noto Sans JP, sans-serif', fontSize: w < 550 ? '10px' : '12px', color: main?'#fff2c7':'#d3e1e3', backgroundColor: '#061827c9', padding: {x:5,y:3} }).setOrigin(.5,.5).setDepth(6).setAlpha(main?1:.62);
       this.markerObjects.push(ring,dot,name);
       ring.setInteractive({ useHandCursor: true });
       ring.on('pointerdown', (pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
         event.stopPropagation(); this.walkTo({ id, area: s.area }, true);
       });
-      if (!this.reducesMotion) this.tweens.add({targets: ring, scale: 1.19, alpha: .32, duration: 1150, yoyo:true, repeat:-1});
+      if (!this.reducesMotion && main) this.tweens.add({targets: ring, scale: 1.19, alpha: .52, duration: 1150, yoyo:true, repeat:-1});
+    }
+  }
+  private updateAvatarShadows():void {
+    for(let i=0;i<this.avatars.length;i++){
+      const avatar=this.avatars[i],shadow=this.avatarShadows[i];
+      if(avatar&&shadow)shadow.setPosition(avatar.x,avatar.y+4);
     }
   }
   private drawNpcPatrols(w:number,h:number,area:Area):void {
@@ -231,9 +373,16 @@ export class WorldScene extends Phaser.Scene {
     };
     for(const [i,npc] of patterns[area].entries()){
       const pos=SITES[area][npc.id];if(!pos)continue;
-      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,npc.skin+'-step-0').setOrigin(.5,1).setScale(.64).setDepth(6).setTint(npc.color));
+      const illustration=(npc.id==='sena'||npc.id==='ritz')&&this.textures.exists('battle-'+npc.skin);
+      const key=illustration?'battle-'+npc.skin:npc.skin+'-step-0';
+      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,key).setOrigin(.5,1).setDepth(6));
+      if(illustration){
+        const img=sprite.texture.getSourceImage() as HTMLImageElement;
+        sprite.setScale(Math.min(66/Math.max(img.width,1),114/Math.max(img.height,1)));
+      }else sprite.setScale(.64).setTint(npc.color);
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?27:-26),25,w-25);
-      const tween=this.tweens.add({targets:sprite,x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
+      const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));
+      const tween=this.tweens.add({targets:[sprite,shadow],x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
       this.npcActors.push({sprite,tween});
     }
   }
@@ -307,12 +456,19 @@ export class WorldScene extends Phaser.Scene {
     this.animateWalk(x,y,interact?()=>window.dispatchEvent(new CustomEvent('lv:hotspot',{detail:{id}})):undefined);
   }
   private pointAndWalk(pointer: Phaser.Input.Pointer):void {
-    if (!this.state || this.state.phase!=='explore' || this.isWalking) return;
+    if (!this.state || this.state.phase!=='explore') return;
     const w=this.scale.width,h=this.scale.height, x=pointer.x,y=pointer.y;
     if(y>h*.84) return; // leave the bottom dialogue/scene copy unobstructed
     const best=Object.entries(SITES[this.state.area]).map(([id,p])=>({id,distance:Phaser.Math.Distance.Between(x,y,p.x*w,p.y*h)})).sort((a,b)=>a.distance-b.distance)[0];
     if(best && best.distance<(w<500?31:39)) this.walkTo({id:best.id,area:this.state.area},true);
     else this.animateWalk(Phaser.Math.Clamp(x,20,w-20),Phaser.Math.Clamp(y,h*.39,h*.82));
+  }
+  private setFieldFrame(sprite:Phaser.GameObjects.Sprite,id:string,time:number,moving:boolean):void {
+    if(this.textures.exists('field-'+id)||this.textures.exists('battle-'+id)){
+      sprite.setAngle(moving&&!this.reducesMotion?Math.sin(time/135)*2.5:0);
+    }else{
+      sprite.setTexture(`${id}-step-${moving&&!this.reducesMotion?Math.floor(time/110)%4:0}`);
+    }
   }
   private animateWalk(x:number,y:number,onArrive?:()=>void):void {
     const lead=this.avatars[0];
@@ -320,21 +476,32 @@ export class WorldScene extends Phaser.Scene {
     const w=this.scale.width,h=this.scale.height;
     const area=this.state.area;
     const route=routeTo(area,{x:lead.x/w,y:lead.y/h},{x:x/w,y:y/h});
-    if(!route.length)return;
+    if(!route.length && Math.hypot(x-lead.x,y-lead.y)<Math.max(12,w*.012)){
+      onArrive?.();
+      return;
+    }
+    if(!route.length){
+      window.dispatchEvent(new CustomEvent('lv:navigation-feedback',{detail:{message:'そこには進めません。別の場所をタップしてください。'}}));
+      return;
+    }
+    this.walkGeneration++;
+    const generation=this.walkGeneration;
     this.tweens.killTweensOf(lead);
     this.isWalking=true;
     const move=(index:number):void=>{
+      if(generation!==this.walkGeneration)return;
       if(!this.state||this.state.phase!=='explore'||this.state.area!==area){this.isWalking=false;return;}
-      if(index>=route.length){this.isWalking=false;lead.setTexture('noel-step-0');onArrive?.();return;}
+      if(index>=route.length){this.isWalking=false;this.setFieldFrame(lead,'noel',this.time.now,false);onArrive?.();return;}
       const point=route[index], px=point.x*w,py=point.y*h;
       const distance=Phaser.Math.Distance.Between(lead.x,lead.y,px,py);
       const duration=this.reducesMotion?25:Math.max(30,distance*3.3);
       this.tweens.add({targets:lead,x:px,y:py,duration,ease:'Linear',onUpdate:()=>{
-        if(!this.reducesMotion)lead.setTexture(`noel-step-${Math.floor(this.time.now/110)%4}`);
+        this.setFieldFrame(lead,'noel',this.time.now,true);
         this.avatars.slice(1).forEach((sprite,i)=>{
           sprite.x=Phaser.Math.Linear(sprite.x,lead.x-45+i*78,.13);
           sprite.y=Phaser.Math.Linear(sprite.y,lead.y+11,.13);
         });
+        this.updateAvatarShadows();
       },onComplete:()=>move(index+1)});
     };
     move(0);
@@ -383,6 +550,12 @@ export class WorldScene extends Phaser.Scene {
   update(time:number,delta:number):void {
     if(!this.state || this.state.phase!=='explore' || this.avatars.length===0) return;
     this.updateProximity();
+    const lead=this.avatars[0];
+    this.game.canvas.dataset.playerX=(lead.x/this.scale.width).toFixed(4);
+    this.game.canvas.dataset.playerY=(lead.y/this.scale.height).toFixed(4);
+    this.updateAvatarShadows();
+    // Manual input always takes priority over an automatic click-to-walk route.
+    if(this.isWalking && this.keys.some(key=>key.isDown))this.cancelCallback();
     if(this.isWalking)return;
     const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
     for(const npc of this.npcActors){if(pauseNpc)npc.tween.pause();else npc.tween.resume();}
@@ -395,7 +568,6 @@ export class WorldScene extends Phaser.Scene {
     if(pressed('RIGHT')||pressed('D'))vx++;
     if(pressed('UP')||pressed('W'))vy--;
     if(pressed('DOWN')||pressed('S'))vy++;
-    const lead=this.avatars[0];
     if(this.interactKey && Phaser.Input.Keyboard.JustDown(this.interactKey)) { this.interactNearby();return; }
     if(vx||vy){
       const m=Math.hypot(vx,vy);const speed=.23*delta;
@@ -404,14 +576,14 @@ export class WorldScene extends Phaser.Scene {
       if(walkable(this.state.area,nx/this.scale.width,ny/this.scale.height)){lead.x=nx;lead.y=ny;}
       else if(walkable(this.state.area,nx/this.scale.width,lead.y/this.scale.height))lead.x=nx;
       else if(walkable(this.state.area,lead.x/this.scale.width,ny/this.scale.height))lead.y=ny;
-      lead.setTexture(`noel-step-${Math.floor(time/110)%4}`);
+      this.setFieldFrame(lead,'noel',time,true);
       for(const [i,s] of this.avatars.slice(1).entries()){
         s.x=Phaser.Math.Linear(s.x,lead.x-45+i*78,.07);
         s.y=Phaser.Math.Linear(s.y,lead.y+11,.07);
-        s.setTexture(`${i===0?'sena':'ritz'}-step-${Math.floor(time/140)%4}`);
+        this.setFieldFrame(s,i===0?'sena':'ritz',time,true);
       }
       if(time-this.lastFootstep>420){this.lastFootstep=time;window.dispatchEvent(new CustomEvent('lv:sfx',{detail:{name:'step'}}));}
-    }else this.avatars.forEach((s,i)=>s.setTexture(`${['noel','sena','ritz'][i]}-step-0`));
+    }else this.avatars.forEach((s,i)=>this.setFieldFrame(s,['noel','sena','ritz'][i],time,false));
   }
 }
 

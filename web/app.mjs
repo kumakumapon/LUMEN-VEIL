@@ -65,6 +65,50 @@ function switchScreen(view) {
   $('ending-screen').hidden = view !== 'ending';
 }
 function text(id, value) { $(id).textContent = value; }
+function nextGoal(s) {
+  if(s.phase!=='explore')return null;
+  const id=!s.flags.sena?'sena':!s.flags.sign?'sign':!s.flags.ritz?'ritz':!s.flags.lamp?'lamp':!s.flags.key?'key':!s.flags.boss?'boss':!s.flags.escaped?'escape':null;
+  if(!id)return null;
+  const area={sena:'harbor',sign:'harbor',ritz:'corridor',lamp:'corridor',key:'corridor',boss:'vault',escape:'dock'}[id];
+  if(s.area===area)return {area,id};
+  const exit={harbor:area==='corridor'?'to-corridor':area==='vault'?'to-corridor':'to-corridor',
+    corridor:area==='harbor'?'to-harbor':area==='vault'||area==='dock'?'to-vault':'to-harbor',
+    vault:area==='dock'?'to-dock':'to-corridor',
+    dock:'to-vault',market:'to-harbor',observatory:'to-harbor'}[s.area];
+  return {area:s.area,id:exit};
+}
+function updateGuide() {
+  const goal=nextGoal(state);
+  const panel=$('journey-guide');
+  panel.hidden=!goal;
+  if(!goal)return;
+  const marker=HOTSPOTS[goal.area]?.find(h=>h.id===goal.id);
+  $('journey-goal').textContent=objective(state);
+  $('journey-instruction').textContent=marker?`次は「${marker.label}」へ。光る印をタップ、または歩いて近づいてEキーで調べよう。`:'画面の光る印を調べて、物語を進めよう。';
+  $('btn-guide-route').disabled=!marker;
+}
+function showControls() {
+  const content=document.createElement('div');content.className='control-guide';
+  for(const [heading,description] of [
+    ['1 · 歩く','PC：WASD・矢印キー。スマートフォン：行きたい場所をタップ。'],
+    ['2 · 話す・調べる','NPCや光る印に近づき、Eキーか「話す・調べる」を押す。目印をタップしても移動できる。'],
+    ['3 · 目的地がわからない','「目的地へ案内」を押すと、次に進む場所まで自動で歩く。'],
+    ['4 · 冒険の記録','上部メニューから保存・装備・依頼を確認。戦闘ではATBゲージが満ちたらコマンドを選ぶ。']
+  ]){const h=document.createElement('h3');h.textContent=heading;const p=document.createElement('p');p.textContent=description;content.append(h,p);}
+  modal('操作ガイド',content);
+}
+$('btn-guide-help').addEventListener('click',showControls);
+$('btn-guide-route').addEventListener('click',()=>{
+  const goal=state&&nextGoal(state);
+  if(!goal)return;
+  $('field-feedback').hidden=true;
+  window.dispatchEvent(new CustomEvent('lv:walk',{detail:goal}));
+});
+window.addEventListener('lv:navigation-feedback',event=>{
+  const feedback=$('field-feedback');
+  feedback.textContent=event.detail?.message||'進めない場所です。';
+  feedback.hidden=false;
+});
 function render() {
   if (!state) { switchScreen('title'); renderButtons(); announce(); return; }
   switchScreen(state.phase);
@@ -83,6 +127,7 @@ function render() {
   text('scene-location', `${String(Object.keys(AREAS).indexOf(state.area) + 1).padStart(2, '0')} / ${state.area.toUpperCase()}`);
   text('area-index', String(Object.keys(AREAS).indexOf(state.area) + 1).padStart(2, '0'));
   text('objective', objective(state));
+  updateGuide();
   text('narrative', state.battle?.log || state.narrative);
   $('battle-panel').hidden = state.phase !== 'battle';
   $('defeat-panel').hidden = state.phase !== 'defeat';
@@ -170,6 +215,7 @@ function selectHotspot(id) {
   window.dispatchEvent(new Event('lv:cancel-walk'));
   const old = state;
   state = interact(state, id);
+  $('field-feedback').hidden=true;
   nearbyTarget=null;$('btn-interact').disabled=true;
   $('field-target-name').textContent='光の印に近づこう';
   if (state.area !== old.area) progress = visit(progress, state.area);
@@ -185,7 +231,7 @@ function start() {
   state = newGame(settings.difficulty);
   progress = visit(freshProgress(), 'harbor');
   living = freshLiving();
-  beep(true); render(); void checkpoint();
+  beep(true); render(); window.dispatchEvent(new Event('lv:reset-field')); void checkpoint();
 }
 async function resume() {
   try {
@@ -194,7 +240,7 @@ async function resume() {
     const loadedProgress = await loadProgress();
     const loadedLiving=await loadLiving();
     state = result; progress = loadedProgress; living=loadedLiving; settings.difficulty = state.difficulty;
-    persistSettings(); beep(true); render(); notice('保存された記憶を読み込みました。');
+    persistSettings(); beep(true); render(); window.dispatchEvent(new Event('lv:reset-field')); notice('保存された記憶を読み込みました。');
   } catch (e) { notice(`読み込めません：${e?.message || '不明なエラー'}`, true); }
 }
 $('btn-start').addEventListener('click', start);
@@ -322,6 +368,36 @@ function openShop(){
 questButton.addEventListener('click',openQuests);
 shopButton.addEventListener('click',openShop);
 
+function openAdventureMenu(){
+  const panel=document.createElement('div');
+  panel.className='adventure-menu';
+  const description=document.createElement('p');
+  description.textContent='やりたいことを選んでください。探索中は「次にすること」から目的地へ案内できます。';
+  panel.append(description);
+  const actions=[
+    ['btn-save','セーブする','現在の冒険をこの端末に保存'],
+    ['btn-load','続きから','保存した冒険を再開'],
+    ['btn-journal','冒険の記録','集めた記憶とセーブデータ'],
+    ['btn-gear','装備・育成','仲間の装備とレベルを確認'],
+    ['btn-quests','依頼を確認','進行中のクエストと報酬'],
+    ['btn-shop','ショップ','武器・防具を購入'],
+    ['btn-settings','設定','音量・文字サイズ・難易度'],
+  ];
+  for(const [id,label,detail] of actions){
+    const target=$(id);
+    if(!target)continue;
+    const button=document.createElement('button');
+    button.type='button';button.className='adventure-menu-item';
+    button.disabled=target.disabled;
+    const title=document.createElement('strong');title.textContent=label;
+    const small=document.createElement('small');small.textContent=detail;
+    button.append(title,small);
+    button.addEventListener('click',()=>{$('overlay').close();target.click();});
+    panel.append(button);
+  }
+  modal('冒険メニュー',panel);
+}
+$('btn-main-menu').addEventListener('click',openAdventureMenu);
 function modal(title, body) {
   text('modal-title', title); $('modal-content').replaceChildren(); $('modal-content').append(body);
   if (!$('overlay').open) $('overlay').showModal();

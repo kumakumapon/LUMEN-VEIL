@@ -30,7 +30,8 @@ export function routeTo(area: Area, start: Point, target: Point): Point[] {
     return index;
   };
   const from = closest(start), to = closest(target);
-  if (from < 0 || to < 0 || from === to) return [all[from] ?? start];
+  if (from < 0 || to < 0) return [];
+  if (from === to) return walkable(area,target.x,target.y) ? [target] : [];
   const g = new Float64Array(all.length).fill(Infinity), parent = new Int32Array(all.length).fill(-1);
   const open = new Set<number>([from]), closed = new Set<number>();
   g[from] = 0;
@@ -51,7 +52,8 @@ export function routeTo(area: Area, start: Point, target: Point): Point[] {
       if (g[current] + distance < g[n]) { g[n] = g[current] + distance; parent[n] = current; open.add(n); }
     }
   }
-  if (parent[to] === -1) return [all[from]];
+  // A disconnected route is a failure, never a command to walk back to spawn.
+  if (parent[to] === -1) return [];
   const path: Point[] = [];
   for (let i = to, safety = 0; i !== -1 && safety++ < all.length; i = parent[i]) path.push(all[i]);
   path.reverse();
@@ -62,5 +64,7 @@ export function routeTo(area: Area, start: Point, target: Point): Point[] {
     if (Math.abs((b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x)) > 1e-5) reduced.push(b);
   }
   reduced.push(path[path.length - 1]);
+  // Use the actual destination when it is walkable, not merely the mesh cell.
+  if(walkable(area,target.x,target.y)) reduced.push(target);
   return reduced;
 }

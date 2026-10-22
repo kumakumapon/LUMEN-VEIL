@@ -12,6 +12,34 @@ def explore(page, id):
     page.locator('#btn-nearby').click()
     page.locator(f'#modal-content [data-hotspot="{id}"]').click()
 
+def assert_field_layout(page, width, height):
+    """Interactive field controls must never cover the canvas or each other."""
+    page.set_viewport_size({'width':width,'height':height})
+    page.wait_for_timeout(180)
+    geometry=page.evaluate("""() => {
+      const ids=['landscape','journey-guide','field-actions','btn-guide-route',
+        'btn-guide-help','btn-nearby','btn-interact','play-layout'];
+      const rects={};
+      for(const id of ids){
+        const el=document.getElementById(id) || document.querySelector('.'+id);
+        if(!el)throw new Error('Missing layout element '+id);
+        const r=el.getBoundingClientRect();
+        rects[id]={left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};
+      }
+      return {rects,overflow:document.documentElement.scrollWidth-window.innerWidth};
+    }""")
+    boxes=geometry['rects']
+    assert geometry['overflow'] <= 2, f"Horizontal overflow at {width}: {geometry['overflow']}"
+    def intersects(a,b):
+        return min(a['right'],b['right'])-max(a['left'],b['left']) > 1 and min(a['bottom'],b['bottom'])-max(a['top'],b['top']) > 1
+    for id in ['journey-guide','field-actions','btn-guide-route','btn-guide-help','btn-nearby','btn-interact']:
+        assert not intersects(boxes['landscape'],boxes[id]), f"Field obscured by {id} at {width}x{height}"
+        assert boxes[id]['width'] > 0 and boxes[id]['height'] > 0
+        assert boxes[id]['left'] >= -1 and boxes[id]['right'] <= width+2, f"{id} exceeds viewport"
+    assert not intersects(boxes['journey-guide'],boxes['field-actions']), f"Quest card overlaps actions at {width}"
+    assert not intersects(boxes['field-actions'],boxes['play-layout']), f"Actions overlap dialogue at {width}"
+    assert not intersects(boxes['journey-guide'],boxes['play-layout']), f"Quest card overlaps dialogue at {width}"
+
 def finish_fight(page):
     for _ in range(45):
         if page.locator('#battle-panel').is_hidden():
@@ -45,6 +73,8 @@ with sync_playwright() as p:
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
     expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
+    for w,h in [(320,640),(390,844),(768,1024),(1440,900)]:
+        assert_field_layout(page,w,h)
     page.locator('#btn-guide-help').click()
     expect(page.locator('#modal-title')).to_have_text('操作ガイド')
     expect(page.locator('.control-guide')).to_contain_text('WASD')

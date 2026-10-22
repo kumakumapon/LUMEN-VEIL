@@ -3,7 +3,6 @@ import { activeHero } from '../web/model.mjs';
 import { battleArtLayout, fitArtwork } from './battle-art';
 import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
-import { createTiles, TILE_COLUMNS, TILE_ROWS, TILE_MIN_Y, TILE_MAX_Y } from './tilemaps';
 
 type Point = { x: number; y: number };
 const SITES: Record<Area, Record<string, Point>> = {

@@ -368,6 +368,36 @@ function openShop(){
 questButton.addEventListener('click',openQuests);
 shopButton.addEventListener('click',openShop);
 
+function openAdventureMenu(){
+  const panel=document.createElement('div');
+  panel.className='adventure-menu';
+  const description=document.createElement('p');
+  description.textContent='やりたいことを選んでください。探索中は「次にすること」から目的地へ案内できます。';
+  panel.append(description);
+  const actions=[
+    ['btn-save','セーブする','現在の冒険をこの端末に保存'],
+    ['btn-load','続きから','保存した冒険を再開'],
+    ['btn-journal','冒険の記録','集めた記憶とセーブデータ'],
+    ['btn-gear','装備・育成','仲間の装備とレベルを確認'],
+    ['btn-quests','依頼を確認','進行中のクエストと報酬'],
+    ['btn-shop','ショップ','武器・防具を購入'],
+    ['btn-settings','設定','音量・文字サイズ・難易度'],
+  ];
+  for(const [id,label,detail] of actions){
+    const target=$(id);
+    if(!target)continue;
+    const button=document.createElement('button');
+    button.type='button';button.className='adventure-menu-item';
+    button.disabled=target.disabled;
+    const title=document.createElement('strong');title.textContent=label;
+    const small=document.createElement('small');small.textContent=detail;
+    button.append(title,small);
+    button.addEventListener('click',()=>{$('overlay').close();target.click();});
+    panel.append(button);
+  }
+  modal('冒険メニュー',panel);
+}
+$('btn-main-menu').addEventListener('click',openAdventureMenu);
 function modal(title, body) {
   text('modal-title', title); $('modal-content').replaceChildren(); $('modal-content').append(body);
   if (!$('overlay').open) $('overlay').showModal();

@@ -87,3 +87,46 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 .in-combat .scene-copy h2{font-size:clamp(15px,1.7vw,23px);letter-spacing:.1em;margin:0}
 .in-combat .landscape-overlay{background:linear-gradient(0deg,#0613218c,transparent 35%)}
 .in-combat .landscape{filter:none}
+
+/* Immersive JRPG field: exploration happens on the map, not in a choice grid. */
+.game-screen.explore-mode{position:relative;min-height:calc(100svh - 105px);padding:0}
+.explore-mode .landscape{height:calc(100svh - 110px);min-height:590px;border-bottom:0}
+.explore-mode .scene-copy{top:70px;bottom:auto;max-width:470px;opacity:.96}
+.explore-mode .scene-copy h2{font-size:clamp(23px,2.5vw,39px)}
+.explore-mode .scene-copy p:last-child,.explore-mode .scene-index{display:none}
+.explore-mode .play-layout{position:absolute;z-index:5;bottom:16px;left:clamp(12px,3vw,44px);right:clamp(12px,3vw,44px);max-width:none;padding:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,280px);gap:14px;pointer-events:none}
+.explore-mode .interaction-panel{background:transparent;border:0;padding:0;box-shadow:none;pointer-events:none;align-self:end}
+.explore-mode .interaction-panel .panel-heading,.explore-mode #hotspots{display:none!important}
+.explore-mode .interaction-panel .dialogue{margin:0;padding:16px 20px;min-height:78px;max-width:760px;border:1px solid #d6c69b7a;background:linear-gradient(105deg,#071526ef,#0c2439e9);border-radius:10px;box-shadow:0 10px 35px #0008}
+.explore-mode .status-panel{gap:6px;max-height:240px;overflow:hidden}
+.explore-mode .status-panel section{padding:9px 12px;background:#071627dc;backdrop-filter:blur(8px)}
+.explore-mode .status-panel .memory-panel{display:none}
+.explore-mode .status-panel .party-member{padding:4px 0}
+.explore-mode .status-panel .objective-panel p{margin:7px 0;font-size:11px}
+.field-actions{position:absolute;z-index:6;right:clamp(14px,4vw,65px);bottom:clamp(170px,22vh,240px);display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:min(560px,90vw);justify-content:flex-end}
+.field-target{width:100%;text-align:right;font-size:12px;letter-spacing:.04em;color:#f3ead0;text-shadow:0 2px 10px #000;min-height:20px}
+.field-target span:first-child{color:#99e9df;margin-right:8px}
+.field-actions button{border:1px solid #e5d5a29e;background:#091c30e8;color:#f3f6f4;box-shadow:0 8px 22px #0009;border-radius:8px;padding:10px 14px;font-size:12px;min-height:43px;cursor:pointer;backdrop-filter:blur(10px)}
+.field-actions .field-action-primary{background:linear-gradient(120deg,#19536b,#123a54);font-weight:700}
+.field-actions button:disabled{opacity:.5;cursor:not-allowed}
+.field-actions button:focus-visible{outline:3px solid #95e7e2;outline-offset:2px}
+.field-actions kbd{font-size:10px;color:#e9d9a4;margin-left:6px}
+.nearby-menu{display:grid;gap:9px}
+.nearby-menu p{font-size:12px;line-height:1.7}
+.nearby-item{border:1px solid #7fabb17a;background:#102c42;color:#eaf4f5;border-radius:7px;text-align:left;padding:12px;min-height:45px}
+.nearby-item:hover,.nearby-item:focus-visible{border-color:#d9d29e;background:#20536b}
+@media(max-width:730px){
+ .explore-mode .landscape{height:calc(100svh - 140px);min-height:510px}
+ .explore-mode .scene-copy{top:67px;left:18px;right:12px}
+ .explore-mode .scene-copy h2{font-size:23px}
+ .explore-mode .play-layout{bottom:8px;left:10px;right:10px;display:block}
+ .explore-mode .status-panel{display:none}
+ .explore-mode .interaction-panel .dialogue{padding:10px 12px;min-height:60px}
+ .explore-mode .interaction-panel .dialogue p{font-size:11px;line-height:1.65}
+ .field-actions{right:12px;bottom:105px;gap:6px}
+ .field-actions button{padding:8px 10px;min-height:40px}
+ .field-target{font-size:11px}
+ .explore-mode .walking-guide{display:block;left:14px;right:14px;top:12px;font-size:9px}
+}
+
+.game-screen:not(.explore-mode) .field-actions{display:none}

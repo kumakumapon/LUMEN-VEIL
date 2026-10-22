@@ -6,6 +6,7 @@ import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyIte
 import { saveLiving, loadLiving } from './living-save.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
+let nearbyTarget = null;
 let progress = freshProgress();
 let living = freshLiving();
 let saved = false;
@@ -58,6 +59,7 @@ function renderButtons() {
   $('btn-title-continue').disabled = !saved;
 }
 function switchScreen(view) {
+  $('game-screen').classList.toggle('explore-mode', view === 'explore');
   $('title-screen').hidden = view !== 'title';
   $('game-screen').hidden = !['explore', 'battle', 'defeat'].includes(view);
   $('ending-screen').hidden = view !== 'ending';
@@ -140,12 +142,36 @@ function render() {
   }
   announce();
 }
+function showNearbyMenu() {
+  if(!state||state.phase!=='explore')return;
+  const panel=document.createElement('div');panel.className='nearby-menu';
+  const note=document.createElement('p');note.textContent='フィールドの光の印をタップするか、近づいてEキーで調べられます。周辺一覧からも選べます。';
+  panel.append(note);
+  for(const h of HOTSPOTS[state.area]){
+    const button=document.createElement('button');button.type='button';button.className='nearby-item';button.dataset.hotspot=h.id;
+    button.textContent=`${h.icon} ${h.label} — ${h.caption}`;
+    button.addEventListener('click',()=>{$('overlay').close();selectHotspot(h.id);});
+    panel.append(button);
+  }
+  modal('周辺を探す',panel);
+}
+$('btn-nearby').addEventListener('click',showNearbyMenu);
+$('btn-interact').addEventListener('click',()=>{
+  if(nearbyTarget&&state?.phase==='explore')window.dispatchEvent(new Event('lv:interact-nearest'));
+});
+window.addEventListener('lv:proximity',event=>{
+  nearbyTarget=event.detail?.id||null;
+  $('field-target-name').textContent=event.detail?.name||'光の印に近づこう';
+  $('btn-interact').disabled=!nearbyTarget;
+});
 function selectHotspot(id) {
   if (!state || state.phase !== 'explore') return;
   // Cancel any in-flight movement before changing the scene or quest state.
   window.dispatchEvent(new Event('lv:cancel-walk'));
   const old = state;
   state = interact(state, id);
+  nearbyTarget=null;$('btn-interact').disabled=true;
+  $('field-target-name').textContent='光の印に近づこう';
   if (state.area !== old.area) progress = visit(progress, state.area);
   if (id === 'market-cache' || id === 'observatory-cache') progress = findTreasure(progress, id);
   window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: state.records.length > old.records.length ? 'pickup' : 'select' } }));

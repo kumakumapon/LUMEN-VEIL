@@ -45,7 +45,12 @@
       <div id="landscape" class="landscape area-harbor">
         <div id="phaser-stage" class="phaser-stage" aria-label="歩けるフィールド。タップして移動。矢印キーまたはWASDでも移動できます。"></div>
         <div class="landscape-overlay"></div>
-        <div class="walking-guide" id="walking-guide" aria-hidden="true">✥ タップ / WASD で歩く・E で話す <span>•</span> 光の印を調べる</div>
+        <div class="walking-guide" id="walking-guide" aria-hidden="true">WASD / 矢印キーで移動 · E で話す・調べる · 光の印をタップ</div>
+        <div class="field-actions" aria-label="フィールド操作">
+          <div class="field-target"><span aria-hidden="true">✦ </span><span id="field-target-name" aria-live="polite">光の印に近づこう</span></div>
+          <button id="btn-interact" class="field-action-primary" type="button" disabled>話す・調べる <kbd>E</kbd></button>
+          <button id="btn-nearby" class="field-action-secondary" type="button">周辺を探す <span aria-hidden="true">⌕</span></button>
+        </div>
         <div class="scene-topline"><span id="area-kicker">THE VANISHING PORT</span><span id="scene-location">01 / FLOATING HARBOR</span></div>
         <div class="scene-copy">
           <p class="chapter-label">CHAPTER 00 — 消える港</p>
@@ -57,7 +62,7 @@
       <div class="play-layout">
         <section class="interaction-panel" aria-label="探索と戦闘">
           <div class="panel-heading"><span>◈</span><h3 id="section-title">EXPLORE <small>探索する</small></h3><span class="panel-rule"></span></div>
-          <div id="hotspots" class="hotspots"></div>
+          <div id="hotspots" class="hotspots" aria-hidden="true"></div>
           <div id="battle-panel" class="battle-panel" hidden>
             <div class="foe-header"><div><span class="mini-label">ENCOUNTER · WAIT MODE</span><h3 id="foe-name"></h3></div><span class="foe-sigil" aria-hidden="true">◇</span></div>
             <div class="foe-bars"><span>HP</span><progress id="foe-hp" max="100" value="100"></progress><span>BREAK</span><progress id="foe-break" class="breakbar" max="100" value="100"></progress></div>

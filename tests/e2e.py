@@ -8,7 +8,9 @@ OUT = Path(os.environ.get('SCREENSHOT_DIR', str(Path.cwd() / 'screenshots')))
 OUT.mkdir(exist_ok=True, parents=True)
 
 def explore(page, id):
-    page.locator(f'[data-hotspot="{id}"]').click()
+    # The optional accessibility menu replaces the persistent choice grid.
+    page.locator('#btn-nearby').click()
+    page.locator(f'#modal-content [data-hotspot="{id}"]').click()
 
 def finish_fight(page):
     for _ in range(45):
@@ -36,6 +38,9 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / 'title-desktop.png'), full_page=True)
     page.locator('#btn-start').click()
     expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
+    expect(page.locator('#hotspots')).to_be_hidden()
+    expect(page.locator('#btn-nearby')).to_be_visible()
+    expect(page.locator('#btn-interact')).to_be_visible()
     expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
@@ -132,7 +137,11 @@ with sync_playwright() as p:
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     mobile.screenshot(path=str(OUT / 'title-mobile.png'), full_page=True)
     mobile.locator('#btn-start').tap()
-    expect(mobile.locator('[data-hotspot="sena"]')).to_be_visible()
+    expect(mobile.locator('#hotspots')).to_be_hidden()
+    expect(mobile.locator('#btn-nearby')).to_be_visible()
+    mobile.locator('#btn-nearby').tap()
+    expect(mobile.locator('#modal-content [data-hotspot="sena"]')).to_be_visible()
+    mobile.locator('#btn-close').tap()
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
     expect(mobile.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     mobile.screenshot(path=str(OUT / 'explore-mobile.png'), full_page=True)

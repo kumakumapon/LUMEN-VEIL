@@ -262,20 +262,33 @@ export class WorldScene extends Phaser.Scene {
     grid.fillStyle(p.edge,.94);grid.fillRect(0,horizon,w,h*.014);
     grid.fillStyle(p.dark,1);grid.fillRect(0,horizon+h*.014,w,h*.02);
     grid.lineStyle(2,p.accent,.56);grid.lineBetween(0,horizon,w,horizon);
-    const tw=w*.95/TILE_COLUMNS,th=h*(TILE_MAX_Y-TILE_MIN_Y)/TILE_ROWS;
-    const kinds=[p.base,p.light,p.base,p.dark,p.light,p.base];
-    for(const tile of createTiles(area)){
-      const x=w*tile.x-tw/2,y=h*tile.y-th/2;
-      // Staggered seams, fine grout and occasional worn brass inlays.
-      const color=kinds[tile.kind];
-      grid.fillStyle(color,tile.blocked?.94:.83);
-      grid.fillRect(x+.5,y+.5,Math.max(1,tw-1),Math.max(1,th-1));
-      grid.lineStyle(.65,p.dark,.4);
-      grid.lineBetween(x+1,y+th-1,x+tw-1,y+th-1);
-      if(tile.kind===2 && !tile.blocked){
-        grid.lineStyle(.75,p.accent,.22);
-        grid.lineBetween(x+tw*.28,y+th*.48,x+tw*.7,y+th*.48);
+    // Large staggered paving stones read as a town square rather than a debug
+    // collision grid. The logical 40x20 navigation mesh stays unchanged.
+    const stoneRows=17,stoneCols=27,top=h*.36,bottom=h*.92;
+    const stoneW=w/stoneCols,stoneH=(bottom-top)/stoneRows;
+    for(let row=0;row<stoneRows;row++){
+      const offset=row%2?.5:0;
+      for(let col=-1;col<=stoneCols;col++){
+        const x=(col+offset)*stoneW,y=top+row*stoneH;
+        const variation=(col*13+row*7+(col*row)%5+41)%11;
+        const color=variation<2?p.light:variation<4?p.dark:p.base;
+        grid.fillStyle(color,.84);
+        grid.fillRect(x+1,y+1,stoneW-2,stoneH-2);
+        grid.lineStyle(1,p.edge,.14+row/stoneRows*.11);
+        grid.strokeRect(x+1,y+1,stoneW-2,stoneH-2);
+        if(variation===7){
+          grid.lineStyle(1,p.accent,.16);
+          grid.lineBetween(x+stoneW*.32,y+stoneH*.6,x+stoneW*.62,y+stoneH*.4);
+        }
       }
+    }
+    // A faint central sunlit avenue gives depth and leads the eye into town.
+    grid.fillStyle(p.light,.12);
+    grid.fillTriangle(w*.42,h*.36,w*.58,h*.36,w*.95,h*.92);
+    grid.fillTriangle(w*.42,h*.36,w*.05,h*.92,w*.95,h*.92);
+    grid.lineStyle(1.2,p.accent,.19);
+    for(let i=-5;i<=5;i++){
+      grid.lineBetween(w*(.5+i*.018),h*.36,w*(.5+i*.10),h*.92);
     }
     // Physically blocked places are crates and stone structures, not debug boxes.
     for(const obstacle of OBSTACLES[area]){

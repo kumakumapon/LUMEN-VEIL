@@ -32,6 +32,7 @@ export class WorldScene extends Phaser.Scene {
   private sceneKey = '';
   private bg: Phaser.GameObjects.Image | null = null;
   private avatars: Phaser.GameObjects.Sprite[] = [];
+  private avatarShadows: Phaser.GameObjects.Ellipse[] = [];
   private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween}[] = [];
   private foe: Phaser.GameObjects.Container | null = null;
   private battleActors: { heroId: string; sprite: Phaser.GameObjects.Sprite; ring: Phaser.GameObjects.Ellipse }[] = [];
@@ -190,7 +191,7 @@ export class WorldScene extends Phaser.Scene {
   private wipe(): void {
     this.walkGeneration++;
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
-    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
+    this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.avatarShadows=[]; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
     this.proximityId=null;
     window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id:null,name:null}}));
@@ -327,6 +328,9 @@ export class WorldScene extends Phaser.Scene {
       }else sprite.setScale(Math.max(.8,Math.min(1.42,w/690)));
       return [sprite];
     });
+    this.avatarShadows=this.avatars.map(sprite=>
+      this.track(this.add.ellipse(sprite.x,sprite.y+4,w<550?26:39,w<550?7:11,0x08131f,.58).setDepth(6))
+    );
     this.drawNpcPatrols(w,h,s.area);
     for (const obstacle of OBSTACLES[s.area]) {
       this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
@@ -353,6 +357,12 @@ export class WorldScene extends Phaser.Scene {
       if (!this.reducesMotion && main) this.tweens.add({targets: ring, scale: 1.19, alpha: .52, duration: 1150, yoyo:true, repeat:-1});
     }
   }
+  private updateAvatarShadows():void {
+    for(let i=0;i<this.avatars.length;i++){
+      const avatar=this.avatars[i],shadow=this.avatarShadows[i];
+      if(avatar&&shadow)shadow.setPosition(avatar.x,avatar.y+4);
+    }
+  }
   private drawNpcPatrols(w:number,h:number,area:Area):void {
     const patterns:Record<Area,Array<{id:string;skin:string;color:number}>>={
       harbor:[{id:'sena',skin:'sena',color:0xc6e5ed}],
@@ -371,7 +381,8 @@ export class WorldScene extends Phaser.Scene {
         sprite.setScale(Math.min(66/Math.max(img.width,1),114/Math.max(img.height,1)));
       }else sprite.setScale(.64).setTint(npc.color);
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?27:-26),25,w-25);
-      const tween=this.tweens.add({targets:sprite,x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
+      const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));
+      const tween=this.tweens.add({targets:[sprite,shadow],x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
       this.npcActors.push({sprite,tween});
     }
   }
@@ -490,6 +501,7 @@ export class WorldScene extends Phaser.Scene {
           sprite.x=Phaser.Math.Linear(sprite.x,lead.x-45+i*78,.13);
           sprite.y=Phaser.Math.Linear(sprite.y,lead.y+11,.13);
         });
+        this.updateAvatarShadows();
       },onComplete:()=>move(index+1)});
     };
     move(0);
@@ -541,6 +553,7 @@ export class WorldScene extends Phaser.Scene {
     const lead=this.avatars[0];
     this.game.canvas.dataset.playerX=(lead.x/this.scale.width).toFixed(4);
     this.game.canvas.dataset.playerY=(lead.y/this.scale.height).toFixed(4);
+    this.updateAvatarShadows();
     // Manual input always takes priority over an automatic click-to-walk route.
     if(this.isWalking && this.keys.some(key=>key.isDown))this.cancelCallback();
     if(this.isWalking)return;

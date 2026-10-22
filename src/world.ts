@@ -22,11 +22,6 @@ const LABELS: Record<string, string> = {
   boss: '忘鐘', 'to-dock': '船着き場', 'to-harbor': '港', escape: '飛空艇',
   'to-market': '市場', 'to-observatory': '観測塔', merchant: '商人ユイ', navigator: '航路士', scholar: '星見のエル', 'market-cache': '装備箱', 'observatory-cache': '星図の箱',
 };
-const HEROES = [
-  { id: 'noel', coat: '#e1d9ce', trim: '#344f6d', hair: '#283346' },
-  { id: 'sena', coat: '#314b73', trim: '#a4dce2', hair: '#d5dce5' },
-  { id: 'ritz', coat: '#277f7f', trim: '#b9a06f', hair: '#9a4f40' },
-];
 
 /** Canvas/animation belongs here. Quest and save state stay in the original v1 model. */
 export class WorldScene extends Phaser.Scene {
@@ -78,7 +73,6 @@ export class WorldScene extends Phaser.Scene {
   preload(): void {
     const path = import.meta.env.BASE_URL + 'assets/';
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
-    for (const id of ['noel','sena','ritz']) this.load.image('face-'+id,path+'portrait-'+id+'.webp');
     for (const id of ['noel','sena','ritz','bell']) this.load.image('battle-'+id, path+'battle-'+id+'.webp');
     this.load.image('battle-arena',path+'battle-arena.webp');
     // Rendering always has procedural fallback textures when an image cannot be loaded.
@@ -125,73 +119,6 @@ export class WorldScene extends Phaser.Scene {
       const canvas=this.textures.createCanvas(key,80,112);
       if(!canvas)continue;
       drawFieldFigure(canvas.context,id,facing,frame);
-      canvas.refresh();
-    }
-  }
-  private generateFieldTextures():void {
-    // The original battle illustrations include transparent poster margins.
-    // Trim those margins for the field instead of rendering a tiny person.
-    for(const id of ['noel','sena','ritz']){
-      const sourceKey='battle-'+id,targetKey='field-'+id;
-      if(!this.textures.exists(sourceKey)||this.textures.exists(targetKey))continue;
-      const source=this.textures.get(sourceKey).getSourceImage() as HTMLImageElement;
-      if(!source.width||!source.height)continue;
-      const scan=document.createElement('canvas');
-      scan.width=source.width;scan.height=source.height;
-      const ctx=scan.getContext('2d',{willReadFrequently:true});
-      if(!ctx)continue;
-      ctx.drawImage(source,0,0);
-      const rgba=ctx.getImageData(0,0,source.width,source.height).data;
-      let left=source.width,top=source.height,right=-1,bottom=-1;
-      for(let y=0;y<source.height;y+=2)for(let x=0;x<source.width;x+=2){
-        if(rgba[(y*source.width+x)*4+3]<22)continue;
-        if(x<left)left=x;if(x>right)right=x;
-        if(y<top)top=y;if(y>bottom)bottom=y;
-      }
-      if(right<left||bottom<top)continue;
-      const cropW=Math.min(source.width-left,right-left+3);
-      const cropH=Math.min(source.height-top,bottom-top+3);
-      const margin=Math.max(4,Math.round(cropW*.045));
-      const scale=Math.min(1,400/(cropH+margin*2));
-      const texture=this.textures.createCanvas(targetKey,
-        Math.ceil((cropW+margin*2)*scale),Math.ceil((cropH+margin*2)*scale));
-      if(!texture)continue;
-      texture.context.drawImage(source,left,top,cropW,cropH,
-        margin*scale,margin*scale,cropW*scale,cropH*scale);
-      texture.refresh();
-    }
-  }
-  private generateWalkFrames(): void {
-    for (const hero of HEROES) for (let i = 0; i < 4; i++) {
-      const key = `${hero.id}-step-${i}`;
-      if (this.textures.exists(key)) continue;
-      const canvas = this.textures.createCanvas(key, 52, 80);
-      if (!canvas) continue;
-      const g = canvas.context;
-      const stride = [0, 4, 0, -4][i];
-      g.fillStyle = '#08132177'; g.beginPath(); g.ellipse(26, 76, 18, 4, 0, 0, Math.PI * 2); g.fill();
-      // Leather boots and slightly alternating legs form a four-frame walk cycle.
-      g.fillStyle = '#172739'; g.fillRect(17 + stride, 54, 8, 18); g.fillRect(28 - stride, 54, 8, 18);
-      g.fillStyle = '#161d2d'; g.fillRect(15 + stride, 69, 12, 5); g.fillRect(27 - stride, 69, 12, 5);
-      g.fillStyle = hero.coat; g.beginPath(); g.moveTo(16, 26); g.lineTo(37, 26); g.lineTo(43, 58); g.lineTo(9, 58); g.closePath(); g.fill();
-      g.fillStyle = hero.trim; g.fillRect(17, 38, 18, 5); g.fillRect(25, 27, 3, 29);
-      g.fillStyle = hero.coat; g.fillRect(9 + stride, 30, 8, 25); g.fillRect(36 - stride, 30, 8, 25);
-      g.fillStyle = '#e8c5a5'; g.beginPath(); g.arc(26, 18, 11, 0, Math.PI * 2); g.fill();
-      g.fillStyle = hero.hair; g.beginPath(); g.arc(26, 15, 12, Math.PI * 1.02, Math.PI * 1.96); g.lineTo(37, 15); g.lineTo(29, 6); g.lineTo(16, 13); g.closePath(); g.fill();
-      // High-detail face art from the existing original portraits; fall back to
-      // vector eyes when the image is unavailable or failed to load.
-      if (this.textures.exists('face-'+hero.id)) {
-        const face=this.textures.get('face-'+hero.id).getSourceImage() as HTMLImageElement;
-        if(face.width&&face.height){
-          g.save();g.beginPath();g.arc(26,19,12,0,Math.PI*2);g.clip();
-          const side=Math.min(face.width,face.height)*.65;
-          g.drawImage(face,Math.max(0,(face.width-side)*.45),Math.max(0,face.height*.10),side,side,13,6,26,26);
-          g.restore();g.strokeStyle='#ead3a4';g.lineWidth=1.8;g.beginPath();g.arc(26,19,12.5,0,Math.PI*2);g.stroke();
-        }
-      } else { g.fillStyle = '#172a40';g.fillRect(20,19,3,2);g.fillRect(30,19,3,2); }
-      g.fillStyle='#f2e3bb';g.fillRect(18,43,16,2);
-      g.fillStyle='#a3cbd2';g.fillRect(14+stride,49,4,5);g.fillRect(36-stride,49,4,5); g.fillRect(30, 19, 3, 2);
-      g.strokeStyle = '#f3e2ad'; g.lineWidth = 1; g.strokeRect(10, 27, 32, 32);
       canvas.refresh();
     }
   }

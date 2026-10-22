@@ -46,6 +46,16 @@
         <div id="phaser-stage" class="phaser-stage" aria-label="歩けるフィールド。タップして移動。矢印キーまたはWASDでも移動できます。"></div>
         <div class="landscape-overlay"></div>
         <div class="walking-guide" id="walking-guide" aria-hidden="true">WASD / 矢印キーで移動 · E で話す・調べる · 光の印をタップ</div>
+        <section id="journey-guide" class="journey-guide" aria-label="次の冒険の目的">
+          <span class="journey-eyebrow">NEXT STEP · 次にすること</span>
+          <strong id="journey-goal">港にいるセナと話す</strong>
+          <p id="journey-instruction">まずは光る目印の近くまで移動しよう。</p>
+          <div class="journey-buttons">
+            <button id="btn-guide-route" type="button">目的地へ案内 <span aria-hidden="true">➜</span></button>
+            <button id="btn-guide-help" type="button">操作方法 <span aria-hidden="true">?</span></button>
+          </div>
+        </section>
+        <p id="field-feedback" class="field-feedback" role="status" aria-live="polite" hidden></p>
         <div class="field-actions" aria-label="フィールド操作">
           <div class="field-target"><span aria-hidden="true">✦ </span><span id="field-target-name" aria-live="polite">光の印に近づこう</span></div>
           <button id="btn-interact" class="field-action-primary" type="button" disabled>話す・調べる <kbd>E</kbd></button>

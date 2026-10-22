@@ -170,3 +170,114 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
  .toolbar #btn-main-menu{display:inline-flex;align-items:center;justify-content:center;min-width:116px;min-height:42px;font-size:13px;border:1px solid #d9c69a9c;border-radius:8px;background:#123750;color:#f8f4e7}
  .toolbar{overflow:visible;justify-content:center}
 }
+
+
+/* Phase 6: physically separate the playable field from all interactive UI.
+   Prior absolute HUD rules are overridden here so controls never cover actors. */
+.game-screen.explore-mode{
+  display:flex;flex-direction:column;min-height:calc(100svh - 120px);
+  padding:0 0 max(16px,env(safe-area-inset-bottom));
+}
+.explore-mode .landscape{
+  position:relative;flex:0 0 auto;
+  height:clamp(340px,58svh,690px);min-height:0;border-bottom:1px solid #bbd4d26b;
+}
+.explore-mode .scene-copy{top:76px;left:clamp(16px,3vw,45px);max-width:min(440px,47vw);bottom:auto}
+.explore-mode .scene-copy h2{font-size:clamp(20px,2.1vw,31px)}
+.explore-mode .scene-topline{left:clamp(16px,3vw,45px);right:clamp(16px,3vw,45px)}
+.explore-mode .walking-guide{right:clamp(16px,3vw,45px);top:55px;max-width:40%;text-align:right;line-height:1.5}
+.field-ui-dock{display:none}
+.explore-mode .field-ui-dock{
+  position:relative;z-index:2;display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(280px,.85fr);
+  align-items:center;gap:clamp(12px,2vw,24px);
+  padding:clamp(12px,1.5vw,20px) clamp(16px,3vw,48px);
+  background:linear-gradient(100deg,#091b2f,#102d40);
+  border-bottom:1px solid #a9c6c244;
+}
+.explore-mode .journey-guide{
+  position:static;inset:auto;transform:none;width:auto;max-width:none;
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:3px 14px;align-items:center;
+  padding:12px 16px;box-shadow:none;
+  background:linear-gradient(130deg,#15344c,#0d253a);
+  border-radius:10px;min-width:0;
+}
+.explore-mode .journey-eyebrow{grid-column:1;grid-row:1;margin:0}
+.explore-mode .journey-guide strong{grid-column:1;grid-row:2;font-size:clamp(13px,1.2vw,16px);line-height:1.45;overflow-wrap:anywhere}
+.explore-mode .journey-guide p{grid-column:1;grid-row:3;margin:0;font-size:11px;line-height:1.5}
+.explore-mode .journey-buttons{grid-column:2;grid-row:1/4;justify-content:flex-end;max-width:150px}
+.explore-mode .journey-buttons button{min-height:44px;width:100%;padding:9px 12px}
+.explore-mode .field-actions{
+  position:static;inset:auto;transform:none;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+  gap:8px;max-width:none;width:100%;min-width:0;align-items:center;
+  justify-content:stretch;
+}
+.explore-mode .field-target{
+  grid-column:1/-1;width:auto;text-align:left;font-size:12px;
+  min-height:20px;overflow-wrap:anywhere;
+}
+.explore-mode .field-actions button{min-height:48px;width:100%;padding:9px 10px;white-space:normal}
+.explore-mode .field-feedback{
+  position:static;inset:auto;transform:none;
+  grid-column:1/-1;margin:0;padding:8px 12px;max-width:none;
+}
+.explore-mode .play-layout{
+  position:static;inset:auto;max-width:1460px;width:100%;
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(230px,300px);
+  gap:14px;margin:0 auto;padding:12px clamp(16px,3vw,48px);
+  pointer-events:auto;
+}
+.explore-mode .interaction-panel{
+  align-self:stretch;min-width:0;pointer-events:auto;
+}
+.explore-mode .interaction-panel .dialogue{
+  margin:0;min-height:70px;padding:12px 16px;
+}
+.explore-mode .status-panel{max-height:none;overflow:visible;min-width:0}
+.explore-mode .status-panel .objective-panel{display:none}
+.explore-mode .status-panel .party-panel{padding:9px 12px}
+.explore-mode .status-panel .party-member{padding:3px 0}
+@media(max-width:950px){
+  .explore-mode .field-ui-dock{grid-template-columns:minmax(0,1fr);gap:10px}
+  .explore-mode .journey-guide{grid-template-columns:minmax(0,1fr) auto}
+  .explore-mode .field-actions{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .explore-mode .field-target{grid-column:1/-1}
+}
+@media(max-width:730px){
+  .explore-mode .landscape{height:clamp(290px,46svh,500px);min-height:0}
+  .explore-mode .scene-copy{top:64px;left:12px;right:12px;max-width:68%}
+  .explore-mode .scene-copy h2{font-size:clamp(17px,5vw,23px)}
+  .explore-mode .scene-topline{left:12px;right:12px;top:12px;font-size:9px}
+  .explore-mode .walking-guide{display:none}
+  .explore-mode .field-ui-dock{
+    display:grid;grid-template-columns:minmax(0,1fr);
+    padding:10px 12px;gap:10px;
+  }
+  .explore-mode .journey-guide{
+    position:static;left:auto;right:auto;top:auto;max-width:none;
+    grid-template-columns:minmax(0,1fr);padding:10px 12px;gap:5px;
+  }
+  .explore-mode .journey-eyebrow,.explore-mode .journey-guide strong,.explore-mode .journey-guide p,.explore-mode .journey-buttons{
+    grid-column:1;grid-row:auto;
+  }
+  .explore-mode .journey-guide strong{font-size:14px}
+  .explore-mode .journey-guide p{font-size:11px}
+  .explore-mode .journey-buttons{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:none;gap:8px}
+  .explore-mode .journey-buttons button{min-height:44px;width:100%;font-size:12px}
+  .explore-mode .field-actions{position:static;right:auto;bottom:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .explore-mode .field-actions button{min-height:48px;font-size:12px}
+  .explore-mode .play-layout{position:static;display:block;padding:0 12px 12px}
+  .explore-mode .status-panel{display:none}
+  .explore-mode .interaction-panel .dialogue{padding:12px;min-height:68px}
+  .explore-mode .interaction-panel .dialogue p{font-size:12px;line-height:1.7}
+  .topbar{padding-inline:12px;gap:8px}
+  .build-label{display:none}
+}
+@media(max-width:360px){
+  .explore-mode .landscape{height:clamp(260px,44svh,380px)}
+  .explore-mode .scene-copy{max-width:74%}
+  .explore-mode .journey-buttons{grid-template-columns:1fr 1fr}
+  .explore-mode .journey-buttons button{font-size:11px;padding:7px}
+}

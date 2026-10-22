@@ -4,6 +4,7 @@ import { EQUIPMENT, NPC_DIALOGUES, enemyIntent, equipItem, findTreasure, freshPr
 import { saveProgress, loadProgress, importAdventure, exportAdventure } from './expansion-save.mjs';
 import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyItem, tacticalIntent } from './living.mjs';
 import { saveLiving, loadLiving } from './living-save.mjs';
+import { portraitForSpeaker } from './portrait-map.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
 let nearbyTarget = null;
@@ -275,8 +276,10 @@ function showConversation(lines) {
   const update = () => {
     speaker.textContent = lines[index].speaker;
     line.textContent = lines[index].line;
-    const skin=lines[index].speaker.includes('セナ')?'sena':lines[index].speaker.includes('リッツ')?'ritz':lines[index].speaker.includes('ノエル')?'noel':'vald';
-    portrait.src=`${import.meta.env.BASE_URL}assets/portrait-${skin}.webp`;
+    const filename=portraitForSpeaker(lines[index].speaker);
+    portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
+    portrait.alt=`${lines[index].speaker}の立ち絵`;
+    portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
     next.textContent = index === lines.length - 1 ? '会話を終える' : '次へ ▶';
   };
   next.addEventListener('click', () => {

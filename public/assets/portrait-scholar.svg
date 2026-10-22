@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 640" role="img" aria-label="星見のエルの立ち絵">
+<defs><linearGradient id="bg" x2=".8" y2="1"><stop stop-color="#34375e"/><stop offset="1" stop-color="#15273e"/></linearGradient><linearGradient id="coat" x2="1" y2="1"><stop stop-color="#78699e"/><stop offset="1" stop-color="#353953"/></linearGradient><linearGradient id="face" x2="1" y2="1"><stop stop-color="#eed7c2"/><stop offset="1" stop-color="#bb9585"/></linearGradient></defs>
+<rect width="512" height="640" fill="url(#bg)"/><circle cx="381" cy="140" r="190" fill="#d9d3f3" opacity=".18"/>
+<path d="M38 640Q49 463 181 396L334 391Q461 457 481 640Z" fill="url(#coat)" stroke="#c8b9e4" stroke-width="10"/>
+<path d="M153 434L257 504 357 432M258 504V640" fill="none" stroke="#d9cba9" stroke-width="12"/>
+<path d="M226 348L225 409Q257 446 287 407L288 347" fill="#c6a295"/>
+<path d="M142 227Q132 111 250 95Q363 95 381 218L351 338Q312 388 251 385Q187 363 158 327Z" fill="#c3c5d5"/>
+<path d="M174 214Q178 151 256 147Q334 150 342 219L336 315Q305 372 254 376Q202 362 179 315Z" fill="url(#face)"/>
+<path d="M183 233Q205 220 236 234M275 232Q305 218 330 231" stroke="#8c8494" stroke-width="8" fill="none"/>
+<ellipse cx="217" cy="266" rx="13" ry="10" fill="#faf2e9"/><ellipse cx="299" cy="266" rx="13" ry="10" fill="#faf2e9"/>
+<circle cx="216" cy="266" r="8" fill="#647e9d"/><circle cx="299" cy="266" r="8" fill="#647e9d"/>
+<path d="M255 276L248 302 262 307M235 331Q257 339 279 329" fill="none" stroke="#ae8181" stroke-width="4"/>
+<path d="M132 235Q123 105 251 81Q379 88 393 237L358 206Q335 147 254 143Q176 143 151 220Z" fill="#4e4d73" stroke="#bdb7d8" stroke-width="11"/>
+<path d="M164 180Q188 119 255 116Q330 121 349 185" stroke="#d6d5e2" stroke-width="14" fill="none"/>
+<path d="M150 247Q147 333 170 388M364 244Q372 329 347 390" stroke="#aeb8c7" stroke-width="22" fill="none"/>
+<path d="M342 455L420 460 416 544 338 535Z" fill="#a99bca" stroke="#e2d5b7" stroke-width="8"/>
+<path d="M378 465V535M350 479L406 479" stroke="#eee2d0" stroke-width="5"/>
+<circle cx="376" cy="427" r="15" fill="#c7d6f2" opacity=".75"/>
+</svg>

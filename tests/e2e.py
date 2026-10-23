@@ -9,8 +9,11 @@ OUT.mkdir(exist_ok=True, parents=True)
 
 def explore(page, id):
     # The optional accessibility menu replaces the persistent choice grid.
+    # Wait for the dialog's asynchronous close event to dispatch the hotspot.
+    sequence=page.evaluate("Number(document.documentElement.dataset.hotspotSeq||0)")
     page.locator('#btn-nearby').click()
     page.locator(f'#modal-content [data-hotspot="{id}"]').click()
+    page.wait_for_function("previous => Number(document.documentElement.dataset.hotspotSeq||0) > previous",arg=sequence)
 
 def assert_field_layout(page, width, height):
     """Interactive field controls must never cover the canvas or each other."""
@@ -132,8 +135,21 @@ with sync_playwright() as p:
     explore(page, 'merchant')
     expect(page.locator('#modal-title')).to_have_text('会話')
     expect(page.locator('.conversation h3')).to_have_text('商人ユイ')
-    page.locator('.conversation button').click()
+    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','anime-atlas')
+    assert page.locator('.dialogue-portrait').get_attribute('src').endswith('portrait-anime-npcs.avif')
+    page.wait_for_function("document.querySelector('.dialogue-portrait')?.naturalWidth === 384",timeout=12000)
+    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
+    expect(page.locator('.dialogue-cinematic')).to_be_visible()
+    page.screenshot(path=str(OUT / 'dialogue-anime-desktop.png'), full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    frame=page.locator('.cinematic-portrait-frame').bounding_box()
+    assert frame and frame['width'] <= 180 and frame['height'] >= 140
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2')
+    page.screenshot(path=str(OUT / 'dialogue-anime-mobile.png'), full_page=True)
+    page.set_viewport_size({'width':1440,'height':900})
+    page.keyboard.press('Enter')
     expect(page.locator('.conversation h3')).to_have_text('ノエル')
+    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('02 / 03')
     page.locator('.conversation button').click()
     page.locator('.conversation button').click()
     explore(page, 'market-cache')
@@ -149,6 +165,12 @@ with sync_playwright() as p:
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','scholar')
     explore(page, 'scholar')
     expect(page.locator('.conversation h3')).to_have_text('星見のエル')
+    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','anime-atlas')
+    page.keyboard.press('Escape')
+    expect(page.locator('#overlay')).not_to_be_visible()
+    # Keyboard handler is removed on close; subsequent dialogs must not double-advance.
+    explore(page, 'scholar')
+    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
     page.locator('#btn-close').click()
     explore(page, 'observatory-cache')
     explore(page, 'to-harbor')
@@ -232,6 +254,7 @@ with sync_playwright() as p:
     expect(mobile.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
     mobile.screenshot(path=str(OUT / 'explore-mobile.png'), full_page=True)
     explore(mobile, 'sena')
+    # NPC cinematic layout must fit mobile width and remain accessible.
     explore(mobile, 'sign')
     explore(mobile, 'to-corridor')
     explore(mobile, 'ritz')

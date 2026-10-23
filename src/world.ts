@@ -5,6 +5,7 @@ import type { Area, GameEvent, GameView, Command } from './types';
 import { OBSTACLES, routeTo, walkable } from './navigation';
 import { drawFieldFigure, FIELD_ACTORS, FACINGS, facingFromDelta, fieldTextureKey } from './field-characters';
 import { drawAreaDressing } from './field-set-dressing';
+import { drawSceneAtmosphere } from './scene-atmosphere';
 import type { FieldActor, Facing } from './field-characters';
 
 type Point = { x: number; y: number };
@@ -202,7 +203,11 @@ export class WorldScene extends Phaser.Scene {
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
-    if(state.phase==='explore')this.drawTilemap(w,h,state.area);
+    if(state.phase==='explore'){
+      const atmosphere=this.track(this.add.graphics().setDepth(.5));
+      drawSceneAtmosphere(atmosphere,state.area,w,h);
+      this.drawTilemap(w,h,state.area);
+    }
     // Ambient cloud gradients, distant airship lights and a ground line add parallax depth.
     this.track(this.add.rectangle(w / 2, h * .84, w, h * .32, 0x061726, .23).setDepth(2));
     this.track(this.add.ellipse(w * .48, h * .77, w * .94, 18, 0xb3cad4, .24).setDepth(3));

@@ -5,6 +5,7 @@ import { saveProgress, loadProgress, importAdventure, exportAdventure } from './
 import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyItem, tacticalIntent } from './living.mjs';
 import { saveLiving, loadLiving } from './living-save.mjs';
 import { portraitForSpeaker } from './portrait-map.mjs';
+import { animePortraitForSpeaker, npcAtlasObjectPosition } from './anime-portraits.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
 let nearbyTarget = null;
@@ -200,7 +201,13 @@ function showNearbyMenu() {
   for(const h of availableHotspots()){
     const button=document.createElement('button');button.type='button';button.className='nearby-item';button.dataset.hotspot=h.id;
     button.textContent=`${h.icon} ${h.label} — ${h.caption}`;
-    button.addEventListener('click',()=>{$('overlay').close();selectHotspot(h.id);});
+    button.addEventListener('click',()=>{
+      // Wait for the previous dialog's close event before opening a cinematic
+      // conversation. Otherwise its delayed close event tears down the new one.
+      const overlay=$('overlay');
+      overlay.addEventListener('close',()=>selectHotspot(h.id),{once:true});
+      overlay.close();
+    });
     panel.append(button);
   }
   modal('周辺を探す',panel);
@@ -220,6 +227,10 @@ function selectHotspot(id) {
   window.dispatchEvent(new Event('lv:cancel-walk'));
   const old = state;
   state = interact(state, id);
+  // Observable acknowledgement for async menu-close -> hotspot dispatch.
+  const root=document.documentElement;
+  root.dataset.lastHotspot=id;
+  root.dataset.hotspotSeq=String(Number(root.dataset.hotspotSeq||0)+1);
   $('field-feedback').hidden=true;
   nearbyTarget=null;$('btn-interact').disabled=true;
   $('field-target-name').textContent='光の印に近づこう';
@@ -272,25 +283,74 @@ $('commands').addEventListener('click', event => {
   if (state.phase === 'explore') void checkpoint();
 });
 function showConversation(lines) {
-  const container = document.createElement('div'); container.className = 'conversation';
-  let index = 0;
-  const speaker = document.createElement('h3'), line = document.createElement('p');
-  const portrait=document.createElement('img');portrait.className='dialogue-portrait';portrait.alt='';portrait.loading='lazy';
-  const next = document.createElement('button'); next.type = 'button'; next.className = 'primary-btn';
-  const update = () => {
-    speaker.textContent = lines[index].speaker;
-    line.textContent = lines[index].line;
-    const filename=portraitForSpeaker(lines[index].speaker);
-    portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
-    portrait.alt=`${lines[index].speaker}の立ち絵`;
-    portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
-    next.textContent = index === lines.length - 1 ? '会話を終える' : '次へ ▶';
+  if(!Array.isArray(lines)||lines.length===0)return;
+  const container=document.createElement('div');container.className='conversation cinematic-conversation';
+  const portraitFrame=document.createElement('div');portraitFrame.className='cinematic-portrait-frame';
+  const portrait=document.createElement('img');portrait.className='dialogue-portrait';portrait.alt='';portrait.decoding='async';
+  const portraitGlow=document.createElement('div');portraitGlow.className='cinematic-portrait-glow';portraitGlow.setAttribute('aria-hidden','true');
+  portraitFrame.append(portraitGlow,portrait);
+  const story=document.createElement('div');story.className='cinematic-dialogue-copy';
+  const eyebrow=document.createElement('span');eyebrow.className='cinematic-dialogue-eyebrow';eyebrow.textContent='LUMEN VEIL · CONVERSATION';
+  const speaker=document.createElement('h3');
+  const line=document.createElement('p');line.className='cinematic-dialogue-line';line.setAttribute('aria-live','polite');
+  const controls=document.createElement('div');controls.className='cinematic-dialogue-controls';
+  const progress=document.createElement('span');progress.className='cinematic-dialogue-progress';progress.setAttribute('aria-label','会話の進行状況');
+  const hint=document.createElement('span');hint.className='cinematic-dialogue-hint';hint.textContent='Enter / Space で進む';
+  const next=document.createElement('button');next.type='button';next.className='primary-btn cinematic-next';
+  controls.append(progress,hint,next);
+  story.append(eyebrow,speaker,line,controls);
+  container.append(portraitFrame,story);
+  let index=0;
+  const overlay=$('overlay');
+  const controller=new AbortController();
+  const cleanup=()=>{controller.abort();overlay.classList.remove('dialogue-cinematic');};
+  overlay.addEventListener('close',cleanup,{once:true,signal:controller.signal});
+  const update=()=>{
+    const current=lines[index];
+    speaker.textContent=current.speaker;
+    line.textContent=current.line;
+    const filename=portraitForSpeaker(current.speaker);
+    const anime=animePortraitForSpeaker(current.speaker);
+    portrait.onerror=()=>{
+      if(anime&&portrait.dataset.artSource==='anime-atlas'){
+        portrait.dataset.artSource='anime-webp-fallback';
+        portrait.src=`${import.meta.env.BASE_URL}assets/${anime.fallback}`;
+        return;
+      }
+      portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
+      portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
+      portrait.style.objectPosition='center 20%';
+      portrait.dataset.artSource='fallback';
+    };
+    portrait.style.objectPosition=anime?`${npcAtlasObjectPosition(anime.column)} center`:'center 20%';
+    portrait.src=`${import.meta.env.BASE_URL}assets/${anime?.file??filename}`;
+    portrait.dataset.artSource=anime?'anime-atlas':'existing-portrait';
+    portrait.alt=`${current.speaker}の立ち絵`;
+    portraitFrame.dataset.speaker=current.speaker;
+    progress.textContent=`${String(index+1).padStart(2,'0')} / ${String(lines.length).padStart(2,'0')}`;
+    next.textContent=index===lines.length-1?'会話を終える':'次へ  ›';
+    container.classList.remove('cinematic-line-enter');
+    // Restart entrance on each line without delaying screen-reader text.
+    if(!settings.reduceMotion){void container.offsetWidth;container.classList.add('cinematic-line-enter');}
   };
-  next.addEventListener('click', () => {
-    if (index + 1 >= lines.length) { $('overlay').close(); return; }
-    index++; update(); beep();
-  });
-  container.append(portrait,speaker, line, next); update(); modal('会話', container);
+  const advance=()=>{
+    if(index+1>=lines.length){overlay.close();return;}
+    index++;update();beep();
+  };
+  next.addEventListener('click',advance,{signal:controller.signal});
+  overlay.addEventListener('keydown',event=>{
+    if(event.repeat||!overlay.open)return;
+    if(event.key==='Enter'||event.key===' '){
+      // Keep the explicit close button keyboard-accessible.
+      if(event.target instanceof Element && event.target.closest('#btn-close'))return;
+      if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+      event.preventDefault();event.stopPropagation();advance();
+    }
+  },{capture:true,signal:controller.signal});
+  update();
+  overlay.classList.add('dialogue-cinematic');
+  modal('会話',container);
+  next.focus({preventScroll:true});
 }
 function openGear() {
   if (!state) return;

@@ -227,6 +227,10 @@ function selectHotspot(id) {
   window.dispatchEvent(new Event('lv:cancel-walk'));
   const old = state;
   state = interact(state, id);
+  // Observable acknowledgement for async menu-close -> hotspot dispatch.
+  const root=document.documentElement;
+  root.dataset.lastHotspot=id;
+  root.dataset.hotspotSeq=String(Number(root.dataset.hotspotSeq||0)+1);
   $('field-feedback').hidden=true;
   nearbyTarget=null;$('btn-interact').disabled=true;
   $('field-target-name').textContent='光の印に近づこう';

@@ -347,3 +347,90 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
  .cinematic-line-enter .cinematic-dialogue-line,.cinematic-line-enter .dialogue-portrait{animation:none}
  .explore-mode .field-actions button{transition:none}
 }
+
+
+/* Phase 9 — shared location lighting, legible onboarding and emotional beats. */
+:root{--scene-glow:#9cd8df;--scene-warm:#e9cf9d}
+:root[data-field-area="harbor"]{--scene-glow:#a2e1e9;--scene-warm:#f0d7a6}
+:root[data-field-area="corridor"]{--scene-glow:#a8c6e3;--scene-warm:#d9c8ae}
+:root[data-field-area="vault"]{--scene-glow:#a5b8e9;--scene-warm:#c8c0e4}
+:root[data-field-area="dock"]{--scene-glow:#9fdadf;--scene-warm:#f4c49b}
+:root[data-field-area="market"]{--scene-glow:#acdcd8;--scene-warm:#f3ca95}
+:root[data-field-area="observatory"]{--scene-glow:#c4b9e7;--scene-warm:#dfcfaa}
+.explore-mode .field-ui-dock{border-top-color:color-mix(in srgb,var(--scene-warm),transparent 35%)}
+.explore-mode .journey-guide{border-color:color-mix(in srgb,var(--scene-warm),transparent 60%)}
+.explore-mode .journey-eyebrow,.explore-mode .field-target span:first-child{color:var(--scene-glow)}
+.explore-mode .journey-guide{grid-column:1;grid-row:1}
+.explore-mode .field-actions{grid-column:2;grid-row:1}
+.explore-mode .field-feedback{grid-row:3}
+.field-onboarding{display:none}
+.explore-mode .field-onboarding{
+  display:grid;grid-column:1/-1;grid-row:2;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;gap:12px;
+  padding:12px 16px;border-radius:10px;
+  border:1px solid #d9c9984f;
+  background:linear-gradient(110deg,#1b364b,#132c42);
+  box-shadow:inset 3px 0 0 var(--scene-warm);
+}
+.field-onboarding[hidden]{display:none!important}
+.onboarding-symbol{font-size:24px;color:var(--scene-warm);line-height:1}
+.onboarding-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.onboarding-step{font-size:10px;letter-spacing:.1em;color:var(--scene-glow)}
+.onboarding-copy strong{font-size:14px;color:#f9eed5;line-height:1.5}
+.onboarding-copy p{margin:0;font-size:12px;color:#d4e3e7;line-height:1.7}
+.onboarding-actions{display:flex;align-items:center;gap:8px}
+.onboarding-actions button,.control-guide-restore{
+  min-height:44px;border-radius:7px;border:1px solid #c9d4cf7c;
+  background:#1c485d;color:#f5f5e9;padding:8px 13px;
+  cursor:pointer;font-size:12px;white-space:normal;
+}
+.onboarding-actions #btn-onboarding-dismiss{background:transparent;border-color:#93b0b274;color:#b9cdd4}
+.onboarding-actions button:focus-visible,.control-guide-restore:focus-visible{outline:3px solid #a2e4e1;outline-offset:2px}
+.control-guide-restore{margin-top:14px;width:100%}
+.modal.dialogue-cinematic{
+  border-color:color-mix(in srgb,var(--scene-warm),transparent 35%);
+  box-shadow:0 26px 90px #000c,0 0 68px color-mix(in srgb,var(--scene-glow),transparent 84%);
+}
+.cinematic-portrait-frame{
+  --emotion-light:var(--scene-glow);
+  box-shadow:0 10px 32px #0007,0 0 25px color-mix(in srgb,var(--emotion-light),transparent 84%);
+}
+.cinematic-portrait-frame::after{
+  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:radial-gradient(circle at 80% 22%,color-mix(in srgb,var(--emotion-light),transparent 78%),transparent 48%);
+  mix-blend-mode:screen;
+}
+.cinematic-conversation[data-mood="warm"] .cinematic-portrait-frame{--emotion-light:#f4d6a4}
+.cinematic-conversation[data-mood="hope"] .cinematic-portrait-frame{--emotion-light:#a8edec}
+.cinematic-conversation[data-mood="tense"] .cinematic-portrait-frame{--emotion-light:#c7a0d5}
+.cinematic-conversation[data-mood="curious"] .cinematic-portrait-frame{--emotion-light:#b8c6f3}
+.cinematic-conversation[data-mood="hope"] .dialogue-portrait{filter:saturate(1.13) brightness(1.055)}
+.cinematic-conversation[data-mood="tense"] .dialogue-portrait{filter:saturate(.83) contrast(1.09)}
+.cinematic-conversation[data-mood="warm"] .dialogue-portrait{filter:sepia(.08) saturate(1.1)}
+.cinematic-conversation[data-mood="curious"] .dialogue-portrait{filter:hue-rotate(3deg) brightness(1.025)}
+.cinematic-conversation[data-mood="tense"] .cinematic-dialogue-eyebrow{color:#e2b7d4}
+.cinematic-conversation[data-mood="hope"] .cinematic-dialogue-eyebrow{color:#a6f1e9}
+body.dialogue-focus .explore-mode .landscape{filter:brightness(.83) saturate(1.07);transition:filter .38s ease}
+.cinematic-line-enter .cinematic-portrait-frame{animation:portrait-camera-focus .4s ease-out both}
+@keyframes portrait-camera-focus{from{opacity:.75;transform:translateX(-5px) scale(1.015)}to{opacity:1;transform:none}}
+@media(max-width:950px){
+  .explore-mode .journey-guide{grid-column:1;grid-row:1}
+  .explore-mode .field-actions{grid-column:1;grid-row:2}
+  .explore-mode .field-onboarding{grid-column:1;grid-row:3}
+  .explore-mode .field-feedback{grid-column:1;grid-row:4}
+}
+@media(max-width:600px){
+  .explore-mode .field-onboarding{grid-template-columns:auto minmax(0,1fr);padding:11px 12px;gap:9px}
+  .onboarding-symbol{font-size:18px;align-self:start}
+  .onboarding-copy strong{font-size:13px}
+  .onboarding-copy p{font-size:11px}
+  .onboarding-actions{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr}
+  .onboarding-actions button{width:100%;font-size:11px}
+}
+@media(prefers-reduced-motion:reduce){
+  .cinematic-line-enter .cinematic-portrait-frame{animation:none}
+  body.dialogue-focus .explore-mode .landscape{transition:none}
+}
+body.reduce-motion .cinematic-line-enter .cinematic-portrait-frame{animation:none}
+body.reduce-motion.dialogue-focus .explore-mode .landscape{transition:none}

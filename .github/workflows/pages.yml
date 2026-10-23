@@ -43,6 +43,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Configure HTTPS for active Ubuntu APT mirrors
+        run: |
+          python -m unittest discover -s tests -p 'test_apt_https.py' -v
+          # ubuntu.sources can use mirror+file:/etc/apt/apt-mirrors.txt.
+          # Rewriting sources.list alone leaves the real mirror URLs on HTTP.
+          sudo python3 scripts/configure-apt-https.py
+          sudo python3 scripts/configure-apt-https.py --check
       - name: Install Playwright browser
         run: |
           python -m pip install playwright==1.55.0

@@ -314,7 +314,7 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 .modal.dialogue-cinematic::backdrop{background:rgba(2,9,21,.82);backdrop-filter:blur(8px)}
 .modal.dialogue-cinematic .modal-head{margin-bottom:12px;padding-bottom:9px}
 .modal.dialogue-cinematic .modal-head h2{font-size:15px;color:#c7d6dc;letter-spacing:.15em}
-.cinematic-conversation{max-width:none;min-height:280px;display:grid;grid-template-columns:minmax(185px,.72fr) minmax(0,1.28fr);gap:clamp(14px,2.5vw,30px);align-items:stretch}
+.cinematic-conversation{max-width:none;min-height:280px;display:grid;grid-template-columns:minmax(185px,220px) minmax(0,1fr);gap:clamp(14px,2.5vw,30px);align-items:stretch}
 .cinematic-portrait-frame{position:relative;min-height:290px;overflow:hidden;border-radius:9px;background:radial-gradient(ellipse at 50% 30%,#44657c 0%,#1a3249 52%,#0a1b2e 100%);border:1px solid #e8d4a07d}
 .cinematic-portrait-glow{position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,#ffe2aa44,transparent 50%),linear-gradient(0deg,#0b1d34 0%,transparent 35%);z-index:1;pointer-events:none}
 .cinematic-conversation .dialogue-portrait{display:block;width:100%;height:100%;min-height:290px;max-height:420px;object-fit:cover;object-position:center 20%;border:0;border-radius:0;box-shadow:none;grid-row:auto}

@@ -5,6 +5,7 @@ import { saveProgress, loadProgress, importAdventure, exportAdventure } from './
 import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyItem, tacticalIntent } from './living.mjs';
 import { saveLiving, loadLiving } from './living-save.mjs';
 import { portraitForSpeaker } from './portrait-map.mjs';
+import { animePortraitForSpeaker, npcAtlasObjectPosition } from './anime-portraits.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
 let nearbyTarget = null;
@@ -299,8 +300,16 @@ function showConversation(lines) {
     speaker.textContent=current.speaker;
     line.textContent=current.line;
     const filename=portraitForSpeaker(current.speaker);
-    portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
-    portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
+    const anime=animePortraitForSpeaker(current.speaker);
+    portrait.onerror=()=>{
+      portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
+      portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
+      portrait.style.objectPosition='center 20%';
+      portrait.dataset.artSource='fallback';
+    };
+    portrait.style.objectPosition=anime?`${npcAtlasObjectPosition(anime.column)} center`:'center 20%';
+    portrait.src=`${import.meta.env.BASE_URL}assets/${anime?.file??filename}`;
+    portrait.dataset.artSource=anime?'anime-atlas':'existing-portrait';
     portrait.alt=`${current.speaker}の立ち絵`;
     portraitFrame.dataset.speaker=current.speaker;
     progress.textContent=`${String(index+1).padStart(2,'0')} / ${String(lines.length).padStart(2,'0')}`;

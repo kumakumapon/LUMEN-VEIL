@@ -6,6 +6,7 @@ import { OBSTACLES, routeTo, walkable } from './navigation';
 import { drawFieldFigure, FIELD_ACTORS, FACINGS, facingFromDelta, fieldTextureKey } from './field-characters';
 import { drawAreaDressing } from './field-set-dressing';
 import { drawSceneAtmosphere } from './scene-atmosphere';
+import { drawHorizonMist, tintFieldActor } from './field-lighting';
 import type { FieldActor, Facing } from './field-characters';
 
 type Point = { x: number; y: number };
@@ -207,6 +208,8 @@ export class WorldScene extends Phaser.Scene {
       const atmosphere=this.track(this.add.graphics().setDepth(.5));
       drawSceneAtmosphere(atmosphere,state.area,w,h);
       this.drawTilemap(w,h,state.area);
+      const horizon=this.track(this.add.graphics().setDepth(1.6));
+      drawHorizonMist(horizon,state.area,w,h);
     }
     // Ambient cloud gradients, distant airship lights and a ground line add parallax depth.
     this.track(this.add.rectangle(w / 2, h * .84, w, h * .32, 0x061726, .23).setDepth(2));
@@ -309,6 +312,7 @@ export class WorldScene extends Phaser.Scene {
       const texture=this.spriteFrame(actor,'down',0);
       const sprite=this.track(this.add.sprite(px*w,py*h,texture.key,texture.frame).setDepth(7-i).setOrigin(.5,1));
       sprite.setScale(this.fieldScale(actor,w<550));
+      tintFieldActor(sprite,s.area);
       this.facingBySprite.set(sprite,'down');
       return [sprite];
     });
@@ -359,6 +363,7 @@ export class WorldScene extends Phaser.Scene {
       const texture=this.spriteFrame(id,'down',0);
       const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,1).setDepth(6));
       sprite.setScale(this.loadedAtlases.has(id)?(w<550?.20:.27):(w<550?.325:.395));
+      tintFieldActor(sprite,area);
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
       const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));

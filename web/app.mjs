@@ -201,7 +201,13 @@ function showNearbyMenu() {
   for(const h of availableHotspots()){
     const button=document.createElement('button');button.type='button';button.className='nearby-item';button.dataset.hotspot=h.id;
     button.textContent=`${h.icon} ${h.label} — ${h.caption}`;
-    button.addEventListener('click',()=>{$('overlay').close();selectHotspot(h.id);});
+    button.addEventListener('click',()=>{
+      // Wait for the previous dialog's close event before opening a cinematic
+      // conversation. Otherwise its delayed close event tears down the new one.
+      const overlay=$('overlay');
+      overlay.addEventListener('close',()=>selectHotspot(h.id),{once:true});
+      overlay.close();
+    });
     panel.append(button);
   }
   modal('周辺を探す',panel);

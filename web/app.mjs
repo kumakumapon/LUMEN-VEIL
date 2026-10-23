@@ -312,6 +312,11 @@ function showConversation(lines) {
     const filename=portraitForSpeaker(current.speaker);
     const anime=animePortraitForSpeaker(current.speaker);
     portrait.onerror=()=>{
+      if(anime&&portrait.dataset.artSource==='anime-atlas'){
+        portrait.dataset.artSource='anime-webp-fallback';
+        portrait.src=`${import.meta.env.BASE_URL}assets/${anime.fallback}`;
+        return;
+      }
       portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
       portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
       portrait.style.objectPosition='center 20%';

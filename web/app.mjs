@@ -49,6 +49,10 @@ async function checkpoint() {
   catch (e) { notice(`保存できません：${e?.message || '不明なエラー'}`, true); }
   renderButtons();
 }
+function availableHotspots(){
+  if(!state)return [];
+  return HOTSPOTS[state.area].filter(h=>!(h.id==='sena'&&state.flags.sena)&&!(h.id==='ritz'&&state.flags.ritz));
+}
 function renderButtons() {
   $('btn-save').disabled = !state;
   $('btn-journal').disabled = !state;
@@ -135,7 +139,7 @@ function render() {
   $('hotspots').hidden = state.phase !== 'explore';
   text('section-title', state.phase === 'explore' ? 'EXPLORE — 探索' : state.phase === 'battle' ? 'COMMAND — 戦闘' : 'DEFEAT — 敗北');
   const hotspots = $('hotspots'); hotspots.replaceChildren();
-  if (state.phase === 'explore') for (const h of HOTSPOTS[state.area]) {
+  if (state.phase === 'explore') for (const h of availableHotspots()) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'hotspot';
     button.dataset.hotspot = h.id;
     const symbol = document.createElement('span'); symbol.className = 'hotspot-symbol'; symbol.textContent = h.icon;
@@ -193,7 +197,7 @@ function showNearbyMenu() {
   const panel=document.createElement('div');panel.className='nearby-menu';
   const note=document.createElement('p');note.textContent='フィールドの光の印をタップするか、近づいてEキーで調べられます。周辺一覧からも選べます。';
   panel.append(note);
-  for(const h of HOTSPOTS[state.area]){
+  for(const h of availableHotspots()){
     const button=document.createElement('button');button.type='button';button.className='nearby-item';button.dataset.hotspot=h.id;
     button.textContent=`${h.icon} ${h.label} — ${h.caption}`;
     button.addEventListener('click',()=>{$('overlay').close();selectHotspot(h.id);});

@@ -70,6 +70,10 @@ with sync_playwright() as p:
     expect(page.locator('#btn-nearby')).to_be_visible()
     expect(page.locator('#btn-interact')).to_be_visible()
     expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
+    # All six static sprite sheets must load, not just the procedural fallback.
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','svg-atlas')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-atlas-count','6')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-resolution','256x384')
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
     expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
@@ -118,6 +122,7 @@ with sync_playwright() as p:
     page.locator('#btn-close').click()
     explore(page, 'to-market')
     expect(page.locator('#area-title')).to_have_text('白帆の市場')
+    page.screenshot(path=str(OUT / 'market-npcs-desktop.png'), full_page=True)
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','merchant,navigator')
     page.locator('#btn-shop').click()
     expect(page.locator('#modal-title')).to_have_text('白帆の市場 — 装備店')
@@ -140,6 +145,7 @@ with sync_playwright() as p:
     explore(page, 'to-harbor')
     explore(page, 'to-observatory')
     expect(page.locator('#area-title')).to_have_text('星環の観測塔')
+    page.screenshot(path=str(OUT / 'observatory-npc-desktop.png'), full_page=True)
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','scholar')
     explore(page, 'scholar')
     expect(page.locator('.conversation h3')).to_have_text('星見のエル')
@@ -147,7 +153,12 @@ with sync_playwright() as p:
     explore(page, 'observatory-cache')
     explore(page, 'to-harbor')
     expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
-    explore(page, 'sena')
+    # Sena was already recruited by the guided first quest.
+    # A recruited companion must not remain duplicated as a field NPC.
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','')
+    page.locator('#btn-nearby').click()
+    expect(page.locator('#modal-content [data-hotspot="sena"]')).to_have_count(0)
+    page.locator('#btn-close').click()
     explore(page, 'sign')
     explore(page, 'letter')
     page.locator('#btn-quests').click()
@@ -272,5 +283,15 @@ with sync_playwright() as p:
     expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
     assert not failures, f'Uncaught page exceptions: {failures}' 
     print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
+    # A failed art request must fall back to procedural walking sprites.
+    fallback=browser.new_page(viewport={'width':1024,'height':768})
+    fallback.route('**/sprites/noel.svg',lambda route:route.abort())
+    fallback.goto(ROOT,wait_until='domcontentloaded')
+    fallback.locator('#btn-start').click()
+    expect(fallback.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','mixed-atlas-fallback',timeout=15000)
+    fallback.keyboard.down('d')
+    fallback.wait_for_timeout(260)
+    fallback.keyboard.up('d')
+    fallback.close()
     browser.close()
 

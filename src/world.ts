@@ -31,6 +31,16 @@ export class WorldScene extends Phaser.Scene {
   private bg: Phaser.GameObjects.Image | null = null;
   private avatars: Phaser.GameObjects.Sprite[] = [];
   private facingBySprite = new WeakMap<Phaser.GameObjects.Sprite,Facing>();
+  private loadedAtlases = new Set<FieldActor>();
+  private spriteFrame(id:FieldActor,dir:Facing,frame:number):{key:string;frame?:string}{
+    return this.loadedAtlases.has(id)
+      ?{key:'atlas-'+id,frame:dir+'-'+frame}
+      :{key:fieldTextureKey(id,dir,frame)};
+  }
+  private fieldScale(id:FieldActor,small:boolean):number{
+    // Atlases use 256×384 frames; the fallback canvas is 160×224.
+    return this.loadedAtlases.has(id)?(small?.215:.29):(small?.34:.44);
+  }
   private avatarShadows: Phaser.GameObjects.Ellipse[] = [];
   private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween;id:FieldActor;lastX:number}[] = [];
   private foe: Phaser.GameObjects.Container | null = null;
@@ -76,11 +86,16 @@ export class WorldScene extends Phaser.Scene {
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
     for (const id of ['noel','sena','ritz','bell']) this.load.image('battle-'+id, path+'battle-'+id+'.webp');
     this.load.image('battle-arena',path+'battle-arena.webp');
+    // Static, editable 4×4 SVG atlases are rasterized once by Phaser.
+    for(const id of FIELD_ACTORS){
+      this.load.svg('atlas-'+id,path+'sprites/'+id+'.svg',{width:1024,height:1536});
+    }
     // Rendering always has procedural fallback textures when an image cannot be loaded.
     this.load.on('loaderror', (file: { key: string }) => console.warn('Artwork fallback:', file.key));
   }
   create(): void {
     this.cameras.main.setBackgroundColor('#0b1b30');
+    this.registerSpriteAtlases();
     this.generateAnimatedFieldSprites();
     for (const k of ['W', 'A', 'S', 'D', 'UP', 'DOWN', 'LEFT', 'RIGHT']) {
       const key = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes[k as keyof typeof Phaser.Input.Keyboard.KeyCodes], false);
@@ -113,8 +128,23 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  private registerSpriteAtlases():void {
+    this.loadedAtlases.clear();
+    for(const id of FIELD_ACTORS){
+      const key='atlas-'+id;
+      if(!this.textures.exists(key))continue;
+      const texture=this.textures.get(key);
+      for(const [row,dir] of FACINGS.entries())for(let col=0;col<4;col++){
+        texture.add(dir+'-'+col,0,col*256,row*384,256,384);
+      }
+      this.loadedAtlases.add(id);
+    }
+    this.game.canvas.dataset.spriteSource=this.loadedAtlases.size===FIELD_ACTORS.length?'svg-atlas':this.loadedAtlases.size?'mixed-atlas-fallback':'canvas-fallback';
+    this.game.canvas.dataset.spriteAtlasCount=String(this.loadedAtlases.size);
+  }
   private generateAnimatedFieldSprites():void {
     for(const id of FIELD_ACTORS)for(const facing of FACINGS)for(let frame=0;frame<4;frame++){
+      if(this.loadedAtlases.has(id))continue;
       const key=fieldTextureKey(id,facing,frame);
       if(this.textures.exists(key))continue;
       // Render at 2x native resolution for cleaner edges on high-DPI screens.
@@ -125,7 +155,7 @@ export class WorldScene extends Phaser.Scene {
       drawFieldFigure(canvas.context,id,facing,frame);
       canvas.refresh();
     }
-    this.game.canvas.dataset.spriteResolution='160x224';
+    this.game.canvas.dataset.spriteResolution=this.loadedAtlases.size===FIELD_ACTORS.length?'256x384':'160x224';
   }
   private relayout(): void {
     // RESIZE fires when HUD/layout height changes. Rebuild scenery but preserve
@@ -164,7 +194,11 @@ export class WorldScene extends Phaser.Scene {
     if(inBattle)this.game.canvas.dataset.battleBackground=key;
     if (this.textures.exists(key)) {
       const bg = this.track(this.add.image(w / 2, h / 2, key).setDepth(0).setAlpha(.87));
-      this.cover(bg, w, h); this.bg = bg;
+      this.cover(bg, w, h);
+      // Keep cinematic background figures below the foreground floor: align
+      // the painted sky to the top rather than center-cropping giant people.
+      if(state.phase==='explore')bg.setY(bg.displayHeight/2);
+      this.bg = bg;
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
@@ -254,6 +288,9 @@ export class WorldScene extends Phaser.Scene {
     }
     drawAreaDressing(grid,area,w,h);
   }
+  private joinedPartyMember(id:string):boolean {
+    return !!(this.state && ((id==='sena'&&this.state.flags.sena)||(id==='ritz'&&this.state.flags.ritz)));
+  }
   private drawExplore(w: number, h: number): void {
     const s = this.state;
     if (!s) return;
@@ -263,9 +300,10 @@ export class WorldScene extends Phaser.Scene {
     this.avatars = s.party.flatMap((hero, i) => {
       if (i === 2 && !s.flags.ritz) return [];
       const [px,py] = positions[i];
-      const key=fieldTextureKey(hero.id as FieldActor,'down',0);
-      const sprite=this.track(this.add.sprite(px*w,py*h,key).setDepth(7-i).setOrigin(.5,1));
-      sprite.setScale(w<550?.34:.44);
+      const actor=hero.id as FieldActor;
+      const texture=this.spriteFrame(actor,'down',0);
+      const sprite=this.track(this.add.sprite(px*w,py*h,texture.key,texture.frame).setDepth(7-i).setOrigin(.5,1));
+      sprite.setScale(this.fieldScale(actor,w<550));
       this.facingBySprite.set(sprite,'down');
       return [sprite];
     });
@@ -284,6 +322,7 @@ export class WorldScene extends Phaser.Scene {
       s.area==='corridor'?(goalArea[storyGoal]==='harbor'?'to-harbor':'to-vault'):
       s.area==='vault'?(goalArea[storyGoal]==='dock'?'to-dock':'to-corridor'):'to-vault';
     for (const [id, coords] of Object.entries(SITES[s.area])) {
+      if(this.joinedPartyMember(id))continue;
       const x = Math.min(w-26, Math.max(26, coords.x * w)), y = Math.min(h-35, Math.max(52, coords.y * h));
       const main=id===highlighted;
       const ring = this.add.circle(x, y, w < 500 ? 13 : 19, main?0xe9b96c:0x75cecd, main?.25:.06)
@@ -309,17 +348,19 @@ export class WorldScene extends Phaser.Scene {
       harbor:['sena'],corridor:['ritz'],vault:[],dock:[],
       market:['merchant','navigator'],observatory:['scholar']
     };
-    for(const [i,id] of actors[area].entries()){
+    const present=actors[area].filter(id=>!this.joinedPartyMember(id));
+    for(const [i,id] of present.entries()){
       const pos=SITES[area][id];if(!pos)continue;
-      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,fieldTextureKey(id,'down',0)).setOrigin(.5,1).setDepth(6));
-      sprite.setScale(w<550?.325:.395);
+      const texture=this.spriteFrame(id,'down',0);
+      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,1).setDepth(6));
+      sprite.setScale(this.loadedAtlases.has(id)?(w<550?.20:.27):(w<550?.325:.395));
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
       const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));
       const tween=this.tweens.add({targets:[sprite,shadow],x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
       this.npcActors.push({sprite,tween,id,lastX:sprite.x});
     }
-    this.game.canvas.dataset.npcSkins=actors[area].join(',');
+    this.game.canvas.dataset.npcSkins=present.join(',');
   }
   private drawBattle(w: number, h: number): void {
     const s=this.state;
@@ -380,7 +421,8 @@ export class WorldScene extends Phaser.Scene {
     const key=state && state.phase!=='ending' ? `${state.area}:${state.phase}`:'';
     if(key!==this.sceneKey){this.sceneKey=key;this.draw();return;}
     if(state?.phase==='battle' || state?.phase==='defeat')this.syncBattleActors();
-    if(state?.phase==='explore' && previous?.area===state.area && previous.flags.ritz!==state.flags.ritz)this.draw();
+    if(state?.phase==='explore' && previous?.area===state.area &&
+      (previous.flags.sena!==state.flags.sena||previous.flags.ritz!==state.flags.ritz))this.draw();
   }
   private walkTo({id,area}:{id:string;area:Area}, interact=false):void {
     if (!this.state || this.state.phase!=='explore' || this.state.area!==area) return;
@@ -417,8 +459,8 @@ export class WorldScene extends Phaser.Scene {
     const facing=facingFromDelta(dx,dy,last);
     this.facingBySprite.set(sprite,facing);
     const frame=moving&&!this.reducesMotion?Math.floor(time/125)%4:0;
-    const key=fieldTextureKey(id as FieldActor,facing,frame);
-    if(this.textures.exists(key))sprite.setTexture(key);
+    const texture=this.spriteFrame(id as FieldActor,facing,frame);
+    if(this.textures.exists(texture.key))sprite.setTexture(texture.key,texture.frame);
     sprite.setAngle(0);
     if(id==='noel')this.game.canvas.dataset.heroFacing=facing;
   }
@@ -483,6 +525,7 @@ export class WorldScene extends Phaser.Scene {
     if(!this.state||this.state.phase!=='explore'||!this.avatars[0])return null;
     const lead=this.avatars[0],w=this.scale.width,h=this.scale.height;
     const nearest=Object.entries(SITES[this.state.area])
+      .filter(([id])=>!this.joinedPartyMember(id))
       .map(([id,p])=>({id,name:LABELS[id]||id,d:Math.hypot((p.x*w-lead.x)/w,(p.y*h-lead.y)/h)}))
       .sort((a,b)=>a.d-b.d)[0];
     return nearest&&nearest.d<.115?{id:nearest.id,name:nearest.name}:null;

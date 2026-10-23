@@ -70,6 +70,10 @@ with sync_playwright() as p:
     expect(page.locator('#btn-nearby')).to_be_visible()
     expect(page.locator('#btn-interact')).to_be_visible()
     expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
+    # All six static sprite sheets must load, not just the procedural fallback.
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','svg-atlas')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-atlas-count','6')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-resolution','256x384')
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
     expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
@@ -272,5 +276,15 @@ with sync_playwright() as p:
     expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
     assert not failures, f'Uncaught page exceptions: {failures}' 
     print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
+    # A failed art request must fall back to procedural walking sprites.
+    fallback=browser.new_page(viewport={'width':1024,'height':768})
+    fallback.route('**/sprites/noel.svg',lambda route:route.abort())
+    fallback.goto(ROOT,wait_until='domcontentloaded')
+    fallback.locator('#btn-start').click()
+    expect(fallback.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','mixed-atlas-fallback',timeout=15000)
+    fallback.keyboard.down('d')
+    fallback.wait_for_timeout(260)
+    fallback.keyboard.up('d')
+    fallback.close()
     browser.close()
 

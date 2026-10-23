@@ -284,6 +284,9 @@ export class WorldScene extends Phaser.Scene {
     }
     drawAreaDressing(grid,area,w,h);
   }
+  private joinedPartyMember(id:string):boolean {
+    return !!(this.state && ((id==='sena'&&this.state.flags.sena)||(id==='ritz'&&this.state.flags.ritz)));
+  }
   private drawExplore(w: number, h: number): void {
     const s = this.state;
     if (!s) return;
@@ -315,6 +318,7 @@ export class WorldScene extends Phaser.Scene {
       s.area==='corridor'?(goalArea[storyGoal]==='harbor'?'to-harbor':'to-vault'):
       s.area==='vault'?(goalArea[storyGoal]==='dock'?'to-dock':'to-corridor'):'to-vault';
     for (const [id, coords] of Object.entries(SITES[s.area])) {
+      if(this.joinedPartyMember(id))continue;
       const x = Math.min(w-26, Math.max(26, coords.x * w)), y = Math.min(h-35, Math.max(52, coords.y * h));
       const main=id===highlighted;
       const ring = this.add.circle(x, y, w < 500 ? 13 : 19, main?0xe9b96c:0x75cecd, main?.25:.06)
@@ -340,7 +344,8 @@ export class WorldScene extends Phaser.Scene {
       harbor:['sena'],corridor:['ritz'],vault:[],dock:[],
       market:['merchant','navigator'],observatory:['scholar']
     };
-    for(const [i,id] of actors[area].entries()){
+    const present=actors[area].filter(id=>!this.joinedPartyMember(id));
+    for(const [i,id] of present.entries()){
       const pos=SITES[area][id];if(!pos)continue;
       const texture=this.spriteFrame(id,'down',0);
       const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,1).setDepth(6));
@@ -351,7 +356,7 @@ export class WorldScene extends Phaser.Scene {
       const tween=this.tweens.add({targets:[sprite,shadow],x:targetX,duration:2400+i*500,ease:'Sine.easeInOut',yoyo:true,repeat:-1,paused:this.reducesMotion});
       this.npcActors.push({sprite,tween,id,lastX:sprite.x});
     }
-    this.game.canvas.dataset.npcSkins=actors[area].join(',');
+    this.game.canvas.dataset.npcSkins=present.join(',');
   }
   private drawBattle(w: number, h: number): void {
     const s=this.state;
@@ -412,7 +417,8 @@ export class WorldScene extends Phaser.Scene {
     const key=state && state.phase!=='ending' ? `${state.area}:${state.phase}`:'';
     if(key!==this.sceneKey){this.sceneKey=key;this.draw();return;}
     if(state?.phase==='battle' || state?.phase==='defeat')this.syncBattleActors();
-    if(state?.phase==='explore' && previous?.area===state.area && previous.flags.ritz!==state.flags.ritz)this.draw();
+    if(state?.phase==='explore' && previous?.area===state.area &&
+      (previous.flags.sena!==state.flags.sena||previous.flags.ritz!==state.flags.ritz))this.draw();
   }
   private walkTo({id,area}:{id:string;area:Area}, interact=false):void {
     if (!this.state || this.state.phase!=='explore' || this.state.area!==area) return;
@@ -515,6 +521,7 @@ export class WorldScene extends Phaser.Scene {
     if(!this.state||this.state.phase!=='explore'||!this.avatars[0])return null;
     const lead=this.avatars[0],w=this.scale.width,h=this.scale.height;
     const nearest=Object.entries(SITES[this.state.area])
+      .filter(([id])=>!this.joinedPartyMember(id))
       .map(([id,p])=>({id,name:LABELS[id]||id,d:Math.hypot((p.x*w-lead.x)/w,(p.y*h-lead.y)/h)}))
       .sort((a,b)=>a.d-b.d)[0];
     return nearest&&nearest.d<.115?{id:nearest.id,name:nearest.name}:null;

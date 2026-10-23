@@ -157,7 +157,7 @@ with sync_playwright() as p:
     expect(page.locator('#overlay')).not_to_be_visible()
     # Keyboard handler is removed on close; subsequent dialogs must not double-advance.
     explore(page, 'scholar')
-    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 02')
+    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
     page.locator('#btn-close').click()
     explore(page, 'observatory-cache')
     explore(page, 'to-harbor')

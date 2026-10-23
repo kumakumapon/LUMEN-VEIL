@@ -9,8 +9,11 @@ OUT.mkdir(exist_ok=True, parents=True)
 
 def explore(page, id):
     # The optional accessibility menu replaces the persistent choice grid.
+    # Wait for the dialog's asynchronous close event to dispatch the hotspot.
+    sequence=page.evaluate("Number(document.documentElement.dataset.hotspotSeq||0)")
     page.locator('#btn-nearby').click()
     page.locator(f'#modal-content [data-hotspot="{id}"]').click()
+    page.wait_for_function("previous => Number(document.documentElement.dataset.hotspotSeq||0) > previous",arg=sequence)
 
 def assert_field_layout(page, width, height):
     """Interactive field controls must never cover the canvas or each other."""

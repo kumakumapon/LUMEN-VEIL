@@ -39,7 +39,7 @@ export class WorldScene extends Phaser.Scene {
   }
   private fieldScale(id:FieldActor,small:boolean):number{
     // Atlases use 256×384 frames; the fallback canvas is 160×224.
-    return this.loadedAtlases.has(id)?(small?.19:.255):(small?.34:.44);
+    return this.loadedAtlases.has(id)?(small?.215:.29):(small?.34:.44);
   }
   private avatarShadows: Phaser.GameObjects.Ellipse[] = [];
   private npcActors: {sprite:Phaser.GameObjects.Sprite;tween:Phaser.Tweens.Tween;id:FieldActor;lastX:number}[] = [];
@@ -194,7 +194,11 @@ export class WorldScene extends Phaser.Scene {
     if(inBattle)this.game.canvas.dataset.battleBackground=key;
     if (this.textures.exists(key)) {
       const bg = this.track(this.add.image(w / 2, h / 2, key).setDepth(0).setAlpha(.87));
-      this.cover(bg, w, h); this.bg = bg;
+      this.cover(bg, w, h);
+      // Keep cinematic background figures below the foreground floor: align
+      // the painted sky to the top rather than center-cropping giant people.
+      if(state.phase==='explore')bg.setY(bg.displayHeight/2);
+      this.bg = bg;
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
     }
@@ -349,7 +353,7 @@ export class WorldScene extends Phaser.Scene {
       const pos=SITES[area][id];if(!pos)continue;
       const texture=this.spriteFrame(id,'down',0);
       const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,1).setDepth(6));
-      sprite.setScale(this.loadedAtlases.has(id)?(w<550?.18:.235):(w<550?.325:.395));
+      sprite.setScale(this.loadedAtlases.has(id)?(w<550?.20:.27):(w<550?.325:.395));
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
       const shadow=this.track(this.add.ellipse(sprite.x,sprite.y+3,28,7,0x07121c,.5).setDepth(5));

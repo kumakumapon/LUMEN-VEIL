@@ -258,9 +258,9 @@ export class WorldScene extends Phaser.Scene {
         const x=(col+offset)*stoneW,y=top+row*stoneH;
         const variation=(col*13+row*7+(col*row)%5+41)%11;
         const color=variation<2?p.light:variation<4?p.dark:p.base;
-        grid.fillStyle(color,.84);
+        grid.fillStyle(color,.77);
         grid.fillRect(x+1,y+1,stoneW-2,stoneH-2);
-        grid.lineStyle(1,p.edge,.14+row/stoneRows*.11);
+        grid.lineStyle(1,p.edge,.09+row/stoneRows*.10);
         grid.strokeRect(x+1,y+1,stoneW-2,stoneH-2);
         if(variation===7){
           grid.lineStyle(1,p.accent,.16);
@@ -320,9 +320,8 @@ export class WorldScene extends Phaser.Scene {
       this.track(this.add.ellipse(sprite.x,sprite.y+4,w<550?26:39,w<550?7:11,0x08131f,.58).setDepth(4.8))
     );
     this.drawNpcPatrols(w,h,s.area);
-    for (const obstacle of OBSTACLES[s.area]) {
-      this.track(this.add.rectangle((obstacle.x + obstacle.w / 2) * w, (obstacle.y + obstacle.h / 2) * h, obstacle.w * w, obstacle.h * h, 0x11283c, .26).setStrokeStyle(1, 0xd5b982, .32).setDepth(3));
-    }
+    // Collision shapes are already represented by crates and architecture in
+    // drawTilemap; don't render a second set of translucent debug rectangles.
     const storyGoal=!s.flags.sena?'sena':!s.flags.sign?'sign':!s.flags.ritz?'ritz':!s.flags.lamp?'lamp':!s.flags.key?'key':!s.flags.boss?'boss':'escape';
     const goalArea:Record<string,Area>={sena:'harbor',sign:'harbor',ritz:'corridor',lamp:'corridor',key:'corridor',boss:'vault',escape:'dock'};
     const highlighted=SITES[s.area][storyGoal]?storyGoal:

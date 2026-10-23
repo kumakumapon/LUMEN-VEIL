@@ -332,6 +332,8 @@ function showConversation(lines) {
   overlay.addEventListener('keydown',event=>{
     if(event.repeat||!overlay.open)return;
     if(event.key==='Enter'||event.key===' '){
+      // Keep the explicit close button keyboard-accessible.
+      if(event.target instanceof Element && event.target.closest('#btn-close'))return;
       if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
       event.preventDefault();event.stopPropagation();advance();
     }

@@ -269,7 +269,8 @@ function selectHotspot(id) {
   $('field-target-name').textContent='光の印に近づこう';
   if (state.area !== old.area) progress = visit(progress, state.area);
   if (id === 'market-cache' || id === 'observatory-cache') progress = findTreasure(progress, id);
-  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: state.records.length > old.records.length ? 'pickup' : 'select' } }));
+  const cue=state.area!==old.area?`area-${state.area}`:state.records.length>old.records.length?'pickup':'select';
+  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: cue } }));
   render();
   const dialogue = NPC_DIALOGUES[old.area]?.[id];
   if (dialogue) showConversation(dialogue);

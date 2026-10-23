@@ -20,7 +20,7 @@ def assert_field_layout(page, width, height):
     page.set_viewport_size({'width':width,'height':height})
     page.wait_for_timeout(180)
     geometry=page.evaluate("""() => {
-      const ids=['landscape','journey-guide','field-actions','btn-guide-route',
+      const ids=['landscape','journey-guide','field-actions','field-onboarding','btn-guide-route',
         'btn-guide-help','btn-nearby','btn-interact','play-layout'];
       const rects={};
       for(const id of ids){
@@ -35,13 +35,16 @@ def assert_field_layout(page, width, height):
     assert geometry['overflow'] <= 2, f"Horizontal overflow at {width}: {geometry['overflow']}"
     def intersects(a,b):
         return min(a['right'],b['right'])-max(a['left'],b['left']) > 1 and min(a['bottom'],b['bottom'])-max(a['top'],b['top']) > 1
-    for id in ['journey-guide','field-actions','btn-guide-route','btn-guide-help','btn-nearby','btn-interact']:
+    for id in ['journey-guide','field-actions','field-onboarding','btn-guide-route','btn-guide-help','btn-nearby','btn-interact']:
         assert not intersects(boxes['landscape'],boxes[id]), f"Field obscured by {id} at {width}x{height}"
         assert boxes[id]['width'] > 0 and boxes[id]['height'] > 0
         assert boxes[id]['left'] >= -1 and boxes[id]['right'] <= width+2, f"{id} exceeds viewport"
     assert not intersects(boxes['journey-guide'],boxes['field-actions']), f"Quest card overlaps actions at {width}"
     assert not intersects(boxes['field-actions'],boxes['play-layout']), f"Actions overlap dialogue at {width}"
     assert not intersects(boxes['journey-guide'],boxes['play-layout']), f"Quest card overlaps dialogue at {width}"
+    assert not intersects(boxes['field-onboarding'],boxes['journey-guide']), f"Guide overlaps objective at {width}"
+    assert not intersects(boxes['field-onboarding'],boxes['field-actions']), f"Guide overlaps controls at {width}"
+    assert not intersects(boxes['field-onboarding'],boxes['play-layout']), f"Guide overlaps dialogue at {width}"
 
 def finish_fight(page):
     for _ in range(45):
@@ -80,12 +83,18 @@ with sync_playwright() as p:
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
     assert page.locator('#phaser-stage canvas').count() == 1
     expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
+    expect(page.locator('#field-onboarding')).to_be_visible()
+    expect(page.locator('#field-onboarding')).to_have_attribute('data-step','1')
+    expect(page.locator('#onboarding-title')).to_have_text('まずはセナと話そう')
     for w,h in [(320,640),(390,844),(768,1024),(1440,900)]:
         assert_field_layout(page,w,h)
+    page.locator('#btn-onboarding-dismiss').click()
+    expect(page.locator('#field-onboarding')).to_be_hidden()
     page.locator('#btn-guide-help').click()
     expect(page.locator('#modal-title')).to_have_text('操作ガイド')
     expect(page.locator('.control-guide')).to_contain_text('WASD')
-    page.locator('#btn-close').click()
+    page.locator('.control-guide-restore').click()
+    expect(page.locator('#field-onboarding')).to_be_visible()
     canvas = page.locator('#phaser-stage canvas')
     page.wait_for_function("!!document.querySelector('#phaser-stage canvas')?.dataset.playerX")
     before_x = float(canvas.get_attribute('data-player-x'))
@@ -116,6 +125,7 @@ with sync_playwright() as p:
     # A beginner can follow the main quest without the legacy choice list.
     page.locator('#btn-guide-route').click()
     expect(page.locator('#journey-goal')).to_have_text('消えた案内板を記憶灯で調べる', timeout=20000)
+    expect(page.locator('#field-onboarding')).to_have_attribute('data-step','2')
     page.screenshot(path=str(OUT / 'guided-field-desktop.png'), full_page=True)
     # Optional exploration, multi-line NPC conversations, equipment and XP sidecar.
     page.locator('#btn-quests').click()
@@ -135,6 +145,8 @@ with sync_playwright() as p:
     explore(page, 'merchant')
     expect(page.locator('#modal-title')).to_have_text('会話')
     expect(page.locator('.conversation h3')).to_have_text('商人ユイ')
+    expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','calm')
+    expect(page.locator('body')).to_have_class('dialogue-focus')
     expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','anime-atlas')
     assert page.locator('.dialogue-portrait').get_attribute('src').endswith('portrait-anime-npcs.avif')
     page.wait_for_function("document.querySelector('.dialogue-portrait')?.naturalWidth === 384",timeout=12000)
@@ -149,9 +161,11 @@ with sync_playwright() as p:
     page.set_viewport_size({'width':1440,'height':900})
     page.keyboard.press('Enter')
     expect(page.locator('.conversation h3')).to_have_text('ノエル')
+    expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','tense')
     expect(page.locator('.cinematic-dialogue-progress')).to_have_text('02 / 03')
     page.locator('.conversation button').click()
     page.locator('.conversation button').click()
+    expect(page.locator('body')).not_to_have_class('dialogue-focus')
     explore(page, 'market-cache')
     page.locator('#btn-gear').click()
     expect(page.locator('#modal-title')).to_have_text('装備・育成')

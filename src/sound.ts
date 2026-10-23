@@ -94,8 +94,20 @@ export class OriginalScore {
     const patterns:Record<string,number[]>={
       select:[75],confirm:[71,79],attack:[57,67],arts:[64,71,83],echo:[59,66,74,86],guard:[48,60],
       break:[48,64,79],victory:[64,69,76,81],step:[47],pickup:[71,76,83],fail:[51,48],
+      'dialogue-open':[67,74], 'dialogue-next':[71], 'dialogue-close':[64,57],
+      'dialogue-warm':[69,76], 'dialogue-hope':[71,78,83],
+      'dialogue-curious':[65,72], 'dialogue-tense':[54,59],
+      'area-harbor':[67,74], 'area-corridor':[57,64],
+      'area-vault':[53,60], 'area-dock':[69,76],
+      'area-market':[66,74], 'area-observatory':[71,76],
     };
     const notes=patterns[name]||patterns.select;
-    notes.forEach((pitch,i)=>this.play(MIDI(pitch),now+i*.045,name==='step'?.045:.12,name==='step'?.04:.17,name==='guard'?'sine':'triangle'));
+    const dialogue=name.startsWith('dialogue-')||name.startsWith('area-');
+    notes.forEach((pitch,i)=>this.play(
+      MIDI(pitch),now+i*(dialogue?.085:.045),
+      name==='step'?.045:dialogue?.18:.12,
+      name==='step'?.04:dialogue?.095:.17,
+      dialogue||name==='guard'?'sine':'triangle'
+    ));
   }
 }

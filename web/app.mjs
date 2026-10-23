@@ -6,9 +6,11 @@ import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyIte
 import { saveLiving, loadLiving } from './living-save.mjs';
 import { portraitForSpeaker } from './portrait-map.mjs';
 import { animePortraitForSpeaker, npcAtlasObjectPosition } from './anime-portraits.mjs';
+import { firstSteps, dialogueMood, dialogueCue } from './experience.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
 let nearbyTarget = null;
+let onboardingDismissed = false;
 let progress = freshProgress();
 let living = freshLiving();
 let saved = false;
@@ -93,6 +95,22 @@ function updateGuide() {
   $('journey-instruction').textContent=marker?`次は「${marker.label}」へ。光る印をタップ、または歩いて近づいてEキーで調べよう。`:'画面の光る印を調べて、物語を進めよう。';
   $('btn-guide-route').disabled=!marker;
 }
+function updateOnboarding(){
+  const panel=$('field-onboarding');
+  const step=firstSteps(state);
+  panel.hidden=!step||onboardingDismissed;
+  if(!step||onboardingDismissed)return;
+  $('onboarding-step').textContent=`冒険ガイド ${step.step} / ${step.total}`;
+  $('onboarding-title').textContent=step.title;
+  $('onboarding-detail').textContent=step.description;
+  $('btn-onboarding-route').textContent=step.action;
+  panel.dataset.step=String(step.step);
+}
+$('btn-onboarding-dismiss').addEventListener('click',()=>{
+  onboardingDismissed=true;
+  $('field-onboarding').hidden=true;
+});
+$('btn-onboarding-route').addEventListener('click',()=>$('btn-guide-route').click());
 function showControls() {
   const content=document.createElement('div');content.className='control-guide';
   for(const [heading,description] of [
@@ -101,6 +119,15 @@ function showControls() {
     ['3 · 目的地がわからない','「目的地へ案内」を押すと、次に進む場所まで自動で歩く。'],
     ['4 · 冒険の記録','上部メニューから保存・装備・依頼を確認。戦闘ではATBゲージが満ちたらコマンドを選ぶ。']
   ]){const h=document.createElement('h3');h.textContent=heading;const p=document.createElement('p');p.textContent=description;content.append(h,p);}
+  const restore=document.createElement('button');
+  restore.type='button';restore.className='control-guide-restore';
+  restore.textContent='冒険ガイドを再表示';
+  restore.addEventListener('click',()=>{
+    onboardingDismissed=false;
+    updateOnboarding();
+    $('overlay').close();
+  });
+  content.append(restore);
   modal('操作ガイド',content);
 }
 $('btn-guide-help').addEventListener('click',showControls);
@@ -116,7 +143,11 @@ window.addEventListener('lv:navigation-feedback',event=>{
   feedback.hidden=false;
 });
 function render() {
-  if (!state) { switchScreen('title'); renderButtons(); announce(); return; }
+  if (!state) {
+    $('field-onboarding').hidden=true;
+    delete document.documentElement.dataset.fieldArea;
+    switchScreen('title'); renderButtons(); announce(); return;
+  }
   switchScreen(state.phase);
   renderButtons();
   if (state.phase === 'ending') {
@@ -127,6 +158,7 @@ function render() {
   }
   const area = AREAS[state.area];
   $('landscape').className = `landscape area-${state.area}`;
+  document.documentElement.dataset.fieldArea=state.area;
   text('area-kicker', area.kicker.toUpperCase());
   text('area-title', area.label);
   text('area-description', area.description);
@@ -134,6 +166,7 @@ function render() {
   text('area-index', String(Object.keys(AREAS).indexOf(state.area) + 1).padStart(2, '0'));
   text('objective', objective(state));
   updateGuide();
+  updateOnboarding();
   text('narrative', state.battle?.log || state.narrative);
   $('battle-panel').hidden = state.phase !== 'battle';
   $('defeat-panel').hidden = state.phase !== 'defeat';
@@ -236,7 +269,8 @@ function selectHotspot(id) {
   $('field-target-name').textContent='光の印に近づこう';
   if (state.area !== old.area) progress = visit(progress, state.area);
   if (id === 'market-cache' || id === 'observatory-cache') progress = findTreasure(progress, id);
-  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: state.records.length > old.records.length ? 'pickup' : 'select' } }));
+  const cue=state.area!==old.area?`area-${state.area}`:state.records.length>old.records.length?'pickup':'select';
+  window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: cue } }));
   render();
   const dialogue = NPC_DIALOGUES[old.area]?.[id];
   if (dialogue) showConversation(dialogue);
@@ -244,6 +278,7 @@ function selectHotspot(id) {
 }
 window.addEventListener('lv:hotspot', event => selectHotspot(event.detail.id));
 function start() {
+  onboardingDismissed=false;
   state = newGame(settings.difficulty);
   progress = visit(freshProgress(), 'harbor');
   living = freshLiving();
@@ -303,12 +338,21 @@ function showConversation(lines) {
   let index=0;
   const overlay=$('overlay');
   const controller=new AbortController();
-  const cleanup=()=>{controller.abort();overlay.classList.remove('dialogue-cinematic');};
+  const cleanup=()=>{
+    controller.abort();
+    overlay.classList.remove('dialogue-cinematic');
+    document.body.classList.remove('dialogue-focus');
+    window.dispatchEvent(new CustomEvent('lv:sfx',{detail:{name:'dialogue-close'}}));
+  };
   overlay.addEventListener('close',cleanup,{once:true,signal:controller.signal});
   const update=()=>{
     const current=lines[index];
     speaker.textContent=current.speaker;
     line.textContent=current.line;
+    const mood=dialogueMood(current.speaker,current.line);
+    container.dataset.mood=mood;
+    portraitFrame.dataset.mood=mood;
+    window.dispatchEvent(new CustomEvent('lv:sfx',{detail:{name:index===0?'dialogue-open':dialogueCue(mood)}}));
     const filename=portraitForSpeaker(current.speaker);
     const anime=animePortraitForSpeaker(current.speaker);
     portrait.onerror=()=>{
@@ -335,7 +379,7 @@ function showConversation(lines) {
   };
   const advance=()=>{
     if(index+1>=lines.length){overlay.close();return;}
-    index++;update();beep();
+    index++;update();
   };
   next.addEventListener('click',advance,{signal:controller.signal});
   overlay.addEventListener('keydown',event=>{
@@ -349,6 +393,7 @@ function showConversation(lines) {
   },{capture:true,signal:controller.signal});
   update();
   overlay.classList.add('dialogue-cinematic');
+  document.body.classList.add('dialogue-focus');
   modal('会話',container);
   next.focus({preventScroll:true});
 }

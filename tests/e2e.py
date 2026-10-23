@@ -138,6 +138,12 @@ with sync_playwright() as p:
     expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
     expect(page.locator('.dialogue-cinematic')).to_be_visible()
     page.screenshot(path=str(OUT / 'dialogue-anime-desktop.png'), full_page=True)
+    page.set_viewport_size({'width':390,'height':844})
+    frame=page.locator('.cinematic-portrait-frame').bounding_box()
+    assert frame and frame['width'] <= 180 and frame['height'] >= 140
+    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2')
+    page.screenshot(path=str(OUT / 'dialogue-anime-mobile.png'), full_page=True)
+    page.set_viewport_size({'width':1440,'height':900})
     page.keyboard.press('Enter')
     expect(page.locator('.conversation h3')).to_have_text('ノエル')
     expect(page.locator('.cinematic-dialogue-progress')).to_have_text('02 / 03')

@@ -153,7 +153,7 @@ with sync_playwright() as p:
     explore(page, 'observatory-cache')
     explore(page, 'to-harbor')
     expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
-    explore(page, 'sena')
+    # Sena was already recruited by the guided first quest.
     # A recruited companion must not remain duplicated as a field NPC.
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','')
     page.locator('#btn-nearby').click()

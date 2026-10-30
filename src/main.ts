@@ -1,5 +1,3 @@
-import Phaser from 'phaser';
-import { WorldScene } from './world';
 import { AtbDirector } from './atb';
 import { OriginalScore } from './sound';
 import type { GameEvent, GameView, Settings } from './types';
@@ -49,8 +47,9 @@ let rendererQueued = false;
 function startRenderer(): void {
   if (rendererQueued) return;
   rendererQueued = true;
-  window.requestAnimationFrame(() => {
+  window.requestAnimationFrame(async () => {
     try {
+      const [{default: Phaser},{WorldScene}] = await Promise.all([import('phaser'),import('./world')]);
       const parent = document.getElementById('phaser-stage');
       if (parent) new Phaser.Game({
         type: Phaser.CANVAS,

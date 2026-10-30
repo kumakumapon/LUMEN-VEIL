@@ -11,8 +11,11 @@ def explore(page, id):
     # The optional accessibility menu replaces the persistent choice grid.
     # Wait for the dialog's asynchronous close event to dispatch the hotspot.
     sequence=page.evaluate("Number(document.documentElement.dataset.hotspotSeq||0)")
-    page.locator('#btn-nearby').click()
-    page.locator(f'#modal-content [data-hotspot="{id}"]').click()
+    touch=page.evaluate('navigator.maxTouchPoints > 0')
+    trigger=page.locator('#btn-nearby')
+    target=page.locator(f'#modal-content [data-hotspot="{id}"]')
+    trigger.tap() if touch else trigger.click()
+    target.tap() if touch else target.click()
     page.wait_for_function("previous => Number(document.documentElement.dataset.hotspotSeq||0) > previous",arg=sequence)
 
 def assert_field_layout(page, width, height):
@@ -46,6 +49,18 @@ def assert_field_layout(page, width, height):
     assert not intersects(boxes['field-onboarding'],boxes['field-actions']), f"Guide overlaps controls at {width}"
     assert not intersects(boxes['field-onboarding'],boxes['play-layout']), f"Guide overlaps dialogue at {width}"
 
+
+def capture_matrix(page, name, field=False):
+    previous=page.viewport_size
+    for width,height in [(320,640),(390,844),(768,1024),(1440,900)]:
+        page.set_viewport_size({'width':width,'height':height})
+        page.wait_for_timeout(200)
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), name
+        if field and page.locator('#field-onboarding').is_visible():
+            assert_field_layout(page,width,height)
+        page.screenshot(path=str(OUT / f'{name}-{width}.png'),full_page=True)
+    page.set_viewport_size(previous)
+
 def finish_fight(page):
     for _ in range(45):
         if page.locator('#battle-panel').is_hidden():
@@ -76,8 +91,9 @@ with sync_playwright() as p:
     expect(page.locator('#btn-nearby')).to_be_visible()
     expect(page.locator('#btn-interact')).to_be_visible()
     expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
+    capture_matrix(page,'harbor',field=True)
     # All six static sprite sheets must load, not just the procedural fallback.
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','svg-atlas')
+    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','painted-atlas')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-atlas-count','6')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-resolution','256x384')
     # A genuine Phaser Canvas is running under the DOM-accessible controls.
@@ -137,6 +153,7 @@ with sync_playwright() as p:
     expect(page.locator('#area-title')).to_have_text('白帆の市場')
     page.screenshot(path=str(OUT / 'market-npcs-desktop.png'), full_page=True)
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','merchant,navigator')
+    capture_matrix(page,'market',field=True)
     page.locator('#btn-shop').click()
     expect(page.locator('#modal-title')).to_have_text('白帆の市場 — 装備店')
     page.locator('[data-buy-item="sunsteel"]').click()
@@ -147,11 +164,12 @@ with sync_playwright() as p:
     expect(page.locator('.conversation h3')).to_have_text('商人ユイ')
     expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','calm')
     expect(page.locator('body')).to_have_class('dialogue-focus')
-    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','anime-atlas')
-    assert page.locator('.dialogue-portrait').get_attribute('src').endswith('portrait-anime-npcs.avif')
+    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','expression-avif')
+    assert page.locator('.dialogue-portrait').get_attribute('src').endswith('expressions/merchant-calm.avif')
     page.wait_for_function("document.querySelector('.dialogue-portrait')?.naturalWidth === 384",timeout=12000)
     expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
     expect(page.locator('.dialogue-cinematic')).to_be_visible()
+    capture_matrix(page,'dialogue',field=False)
     page.screenshot(path=str(OUT / 'dialogue-anime-desktop.png'), full_page=True)
     page.set_viewport_size({'width':390,'height':844})
     frame=page.locator('.cinematic-portrait-frame').bounding_box()
@@ -163,23 +181,26 @@ with sync_playwright() as p:
     expect(page.locator('.conversation h3')).to_have_text('ノエル')
     expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','tense')
     expect(page.locator('.cinematic-dialogue-progress')).to_have_text('02 / 03')
-    page.locator('.conversation button').click()
+    page.keyboard.press('Space')
+    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-expression','worry')
     page.locator('.conversation button').click()
     expect(page.locator('body')).not_to_have_class('dialogue-focus')
     explore(page, 'market-cache')
     page.locator('#btn-gear').click()
     expect(page.locator('#modal-title')).to_have_text('装備・育成')
+    capture_matrix(page,'menu')
     page.locator('[data-gear-hero="noel"][data-gear-slot="weapon"]').select_option('skyblade')
     expect(page.locator('[data-gear-hero="noel"][data-gear-slot="weapon"]')).to_have_value('skyblade')
     page.locator('#btn-close').click()
     explore(page, 'to-harbor')
     explore(page, 'to-observatory')
     expect(page.locator('#area-title')).to_have_text('星環の観測塔')
+    capture_matrix(page,'observatory',field=True)
     page.screenshot(path=str(OUT / 'observatory-npc-desktop.png'), full_page=True)
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','scholar')
     explore(page, 'scholar')
     expect(page.locator('.conversation h3')).to_have_text('星見のエル')
-    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','anime-atlas')
+    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','expression-avif')
     page.keyboard.press('Escape')
     expect(page.locator('#overlay')).not_to_be_visible()
     # Keyboard handler is removed on close; subsequent dialogs must not double-advance.
@@ -207,6 +228,7 @@ with sync_playwright() as p:
     # Prevent a stale Phaser walk callback from undoing a fast DOM area transition.
     page.wait_for_timeout(400)
     expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
+    capture_matrix(page,'corridor',field=True)
     # Reload to verify IndexedDB writes and resume work.
     expect(page.locator('#notice')).to_contain_text('記憶を保存しました。')
     page.reload(wait_until='domcontentloaded')
@@ -220,12 +242,14 @@ with sync_playwright() as p:
     expect(page.locator('#battle-panel')).to_be_visible()
     expect(page.locator('#atb-fill')).to_be_visible()
     expect(page.locator('#atb-status')).to_have_text('WAIT / READY',timeout=10000)
+    capture_matrix(page,'battle',field=False)
     page.screenshot(path=str(OUT / 'battle-desktop.png'), full_page=True)
     finish_fight(page)
     explore(page, 'lamp')
     explore(page, 'badge')
     explore(page, 'key')
     explore(page, 'to-vault')
+    capture_matrix(page,'vault',field=True)
     explore(page, 'boss')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-enemy-art', 'illustrated')
@@ -234,6 +258,7 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / 'boss-illustrated-desktop.png'), full_page=True)
     finish_fight(page)
     explore(page, 'to-dock')
+    capture_matrix(page,'dock',field=True)
     explore(page, 'escape')
     expect(page.locator('#ending-title')).to_have_text('名前は、まだここに。')
     assert page.locator('#ending-copy').inner_text().startswith('消えた手紙と航海士ミラ')
@@ -275,6 +300,13 @@ with sync_playwright() as p:
     expect(mobile.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
     mobile.screenshot(path=str(OUT / 'battle-illustrated-mobile.png'), full_page=True)
     assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
+    finish_fight(mobile)
+    mobile.locator('#btn-main-menu').tap()
+    mobile.get_by_role('button',name='セーブする 現在の冒険をこの端末に保存').tap()
+    expect(mobile.locator('#notice')).to_contain_text('記憶を保存しました。')
+    mobile.reload()
+    mobile.locator('#btn-title-continue').tap()
+    expect(mobile.locator('#area-title')).to_have_text('回廊の整備区画')
     # Legacy production IndexedDB save must survive the TypeScript/Vite upgrade.
     fixture = {
         'version': 1, 'phase':'explore', 'area':'corridor',
@@ -322,13 +354,26 @@ with sync_playwright() as p:
     print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
     # A failed art request must fall back to procedural walking sprites.
     fallback=browser.new_page(viewport={'width':1024,'height':768})
-    fallback.route('**/sprites/noel.svg',lambda route:route.abort())
+    fallback.route('**/sprites/noel.webp',lambda route:route.abort())
     fallback.goto(ROOT,wait_until='domcontentloaded')
     fallback.locator('#btn-start').click()
     expect(fallback.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','mixed-atlas-fallback',timeout=15000)
+    assert fallback.locator('#phaser-stage canvas').get_attribute('data-painted-atlas-count') == '5'
+    assert '"noel":"svg"' in fallback.locator('#phaser-stage canvas').get_attribute('data-sprite-sources')
     fallback.keyboard.down('d')
     fallback.wait_for_timeout(260)
     fallback.keyboard.up('d')
     fallback.close()
+    procedural=browser.new_page(viewport={'width':390,'height':844},reduced_motion='reduce')
+    procedural.route('**/sprites/**',lambda route:route.abort())
+    procedural.goto(ROOT,wait_until='domcontentloaded')
+    procedural.locator('#btn-start').click()
+    expect(procedural.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','canvas-fallback',timeout=15000)
+    procedural.keyboard.down('d')
+    procedural.wait_for_timeout(250)
+    procedural.keyboard.up('d')
+    expect(procedural.locator('#phaser-stage canvas')).to_have_attribute('data-hero-facing','right')
+    procedural.screenshot(path=str(OUT/'fallback-canvas-390.png'),full_page=True)
+    procedural.close()
     browser.close()
 

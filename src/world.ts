@@ -18,7 +18,7 @@ const SITES: Record<Area, Record<string, Point>> = {
   market: { merchant: { x: .69, y: .50 }, navigator: { x: .28, y: .48 }, 'market-cache': { x: .77, y: .73 }, 'to-harbor': { x: .13, y: .74 } },
   observatory: { scholar: { x: .67, y: .48 }, 'observatory-cache': { x: .34, y: .72 }, 'to-harbor': { x: .14, y: .64 } },
 };
-const ASSET_NAMES: Record<Area, string> = { harbor: 'scene-harbor', corridor: 'scene-corridor', vault: 'vault', dock: 'scene-dock', market: 'scene-harbor', observatory: 'scene-corridor' };
+const ASSET_NAMES: Record<Area, string> = { harbor: 'scene-harbor', corridor: 'scene-corridor', vault: 'vault', dock: 'scene-dock', market: 'scene-market', observatory: 'scene-observatory' };
 const LABELS: Record<string, string> = {
   sena: 'セナ', sign: '記憶灯', letter: '手紙', 'to-corridor': '整備区画',
   ritz: 'リッツ', lamp: '修復', badge: '名札', key: '鍵', 'to-vault': '保管庫',
@@ -34,9 +34,11 @@ export class WorldScene extends Phaser.Scene {
   private avatars: Phaser.GameObjects.Sprite[] = [];
   private facingBySprite = new WeakMap<Phaser.GameObjects.Sprite,Facing>();
   private loadedAtlases = new Set<FieldActor>();
+  private paintedAtlases = new Set<FieldActor>();
+  private atlasKeys = new Map<FieldActor,string>();
   private spriteFrame(id:FieldActor,dir:Facing,frame:number):{key:string;frame?:string}{
     return this.loadedAtlases.has(id)
-      ?{key:'atlas-'+id,frame:dir+'-'+frame}
+      ?{key:this.atlasKeys.get(id)!,frame:dir+'-'+frame}
       :{key:fieldTextureKey(id,dir,frame)};
   }
   private fieldScale(id:FieldActor,small:boolean):number{
@@ -81,19 +83,22 @@ export class WorldScene extends Phaser.Scene {
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
     this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail,true);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
-    this.settingsCallback = event => { this.reducesMotion = !!(event as CustomEvent<{ reduceMotion: boolean }>).detail.reduceMotion; };
+    this.settingsCallback = event => { this.reducesMotion = !!(event as CustomEvent<{ reduceMotion: boolean }>).detail.reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches; };
   }
   preload(): void {
     const path = import.meta.env.BASE_URL + 'assets/';
     for (const name of new Set(Object.values(ASSET_NAMES))) this.load.image(name, path + name + '.webp');
     for (const id of ['noel','sena','ritz','bell']) this.load.image('battle-'+id, path+'battle-'+id+'.webp');
     this.load.image('battle-arena',path+'battle-arena.webp');
-    // Static, editable 4×4 SVG atlases are rasterized once by Phaser.
+    // Load only the painted sheet normally; fetch the SVG only on failure.
     for(const id of FIELD_ACTORS){
-      this.load.svg('atlas-'+id,path+'sprites/'+id+'.svg',{width:1024,height:1536});
+      this.load.image('atlas-'+id,path+'sprites/'+id+'.webp');
     }
-    // Rendering always has procedural fallback textures when an image cannot be loaded.
-    this.load.on('loaderror', (file: { key: string }) => console.warn('Artwork fallback:', file.key));
+    this.load.on('loaderror', (file: { key: string }) => {
+      console.warn('Artwork fallback:', file.key);
+      const actor=FIELD_ACTORS.find(id=>file.key==='atlas-'+id);
+      if(actor)this.load.svg('vector-'+actor,path+'sprites/'+actor+'.svg',{width:1024,height:1536});
+    });
   }
   create(): void {
     this.cameras.main.setBackgroundColor('#0b1b30');
@@ -114,7 +119,7 @@ export class WorldScene extends Phaser.Scene {
     window.addEventListener('lv:combat', this.combatCallback);
     window.addEventListener('lv:settings', this.settingsCallback);
     const globals = window as Window & { __lvLatestState?: GameView | null; __lvSettings?: { reduceMotion: boolean } };
-    this.reducesMotion = !!globals.__lvSettings?.reduceMotion;
+    this.reducesMotion = !!globals.__lvSettings?.reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches;
     const last = globals.__lvLatestState;
     if (last) this.sync(last);
     window.dispatchEvent(new Event('lv:scene-ready'));
@@ -132,17 +137,26 @@ export class WorldScene extends Phaser.Scene {
 
   private registerSpriteAtlases():void {
     this.loadedAtlases.clear();
+    this.paintedAtlases.clear();
+    this.atlasKeys.clear();
     for(const id of FIELD_ACTORS){
-      const key='atlas-'+id;
+      const painted=this.textures.exists('atlas-'+id);
+      const key=painted?'atlas-'+id:'vector-'+id;
       if(!this.textures.exists(key))continue;
       const texture=this.textures.get(key);
+      const source=texture.getSourceImage() as HTMLImageElement;
+      if(source.width!==1024||source.height!==1536)continue;
       for(const [row,dir] of FACINGS.entries())for(let col=0;col<4;col++){
         texture.add(dir+'-'+col,0,col*256,row*384,256,384);
       }
       this.loadedAtlases.add(id);
+      this.atlasKeys.set(id,key);
+      if(painted)this.paintedAtlases.add(id);
     }
-    this.game.canvas.dataset.spriteSource=this.loadedAtlases.size===FIELD_ACTORS.length?'svg-atlas':this.loadedAtlases.size?'mixed-atlas-fallback':'canvas-fallback';
+    this.game.canvas.dataset.spriteSource=this.paintedAtlases.size===FIELD_ACTORS.length?'painted-atlas':this.loadedAtlases.size?'mixed-atlas-fallback':'canvas-fallback';
     this.game.canvas.dataset.spriteAtlasCount=String(this.loadedAtlases.size);
+    this.game.canvas.dataset.paintedAtlasCount=String(this.paintedAtlases.size);
+    this.game.canvas.dataset.spriteSources=JSON.stringify(Object.fromEntries(FIELD_ACTORS.map(id=>[id,this.paintedAtlases.has(id)?'webp':this.loadedAtlases.has(id)?'svg':'canvas'])));
   }
   private generateAnimatedFieldSprites():void {
     for(const id of FIELD_ACTORS)for(const facing of FACINGS)for(let frame=0;frame<4;frame++){
@@ -193,13 +207,15 @@ export class WorldScene extends Phaser.Scene {
     if(this.lastFieldPosition?.area!==state.area)this.lastFieldPosition=null;
     const inBattle=state.phase==='battle'||state.phase==='defeat';
     const key=inBattle&&this.textures.exists('battle-arena')?'battle-arena':ASSET_NAMES[state.area];
+    this.game.canvas.dataset.area=state.area;
+    this.game.canvas.dataset.sceneBackground=this.textures.exists(key)?key:'color-fallback';
     if(inBattle)this.game.canvas.dataset.battleBackground=key;
     if (this.textures.exists(key)) {
       const bg = this.track(this.add.image(w / 2, h / 2, key).setDepth(0).setAlpha(.87));
       this.cover(bg, w, h);
       // Keep cinematic background figures below the foreground floor: align
       // the painted sky to the top rather than center-cropping giant people.
-      if(state.phase==='explore')bg.setY(bg.displayHeight/2);
+      if(state.phase==='explore')bg.setY(bg.displayHeight/2 - ((state.area==='market'||state.area==='observatory')?bg.displayHeight*.12:0));
       this.bg = bg;
     } else {
       this.track(this.add.rectangle(w / 2, h / 2, w, h, 0x142942).setDepth(0));
@@ -258,7 +274,7 @@ export class WorldScene extends Phaser.Scene {
         const x=(col+offset)*stoneW,y=top+row*stoneH;
         const variation=(col*13+row*7+(col*row)%5+41)%11;
         const color=variation<2?p.light:variation<4?p.dark:p.base;
-        grid.fillStyle(color,.77);
+        grid.fillStyle(color,.25);
         grid.fillRect(x+1,y+1,stoneW-2,stoneH-2);
         grid.lineStyle(1,p.edge,.09+row/stoneRows*.10);
         grid.strokeRect(x+1,y+1,stoneW-2,stoneH-2);
@@ -310,7 +326,7 @@ export class WorldScene extends Phaser.Scene {
       const [px,py] = positions[i];
       const actor=hero.id as FieldActor;
       const texture=this.spriteFrame(actor,'down',0);
-      const sprite=this.track(this.add.sprite(px*w,py*h,texture.key,texture.frame).setDepth(7-i).setOrigin(.5,1));
+      const sprite=this.track(this.add.sprite(px*w,py*h,texture.key,texture.frame).setDepth(7-i).setOrigin(.5,this.paintedAtlases.has(actor)?352/384:1));
       sprite.setScale(this.fieldScale(actor,w<550));
       tintFieldActor(sprite,s.area);
       this.facingBySprite.set(sprite,'down');
@@ -360,8 +376,8 @@ export class WorldScene extends Phaser.Scene {
     for(const [i,id] of present.entries()){
       const pos=SITES[area][id];if(!pos)continue;
       const texture=this.spriteFrame(id,'down',0);
-      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,1).setDepth(6));
-      sprite.setScale(this.loadedAtlases.has(id)?(w<550?.20:.27):(w<550?.325:.395));
+      const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,this.paintedAtlases.has(id)?352/384:1).setDepth(6));
+      sprite.setScale(this.loadedAtlases.has(id)?(w<550?.25:.33):(w<550?.325:.395));
       tintFieldActor(sprite,area);
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
@@ -396,13 +412,18 @@ export class WorldScene extends Phaser.Scene {
       if(i===2&&!s.flags.ritz)return[];
       const slot=layout.heroes[i];
       const illustrated=this.textures.exists('battle-'+hero.id);
-      const texture=illustrated?'battle-'+hero.id:`${hero.id}-step-0`;
-      const sprite=this.track(this.add.sprite(slot.x,slot.y,texture).setOrigin(.5,1).setDepth(8));
+      const actor=hero.id as FieldActor;
+      const texture=illustrated?{key:'battle-'+hero.id,frame:undefined}:this.spriteFrame(actor,'down',0);
+      const sprite=this.track(this.add.sprite(slot.x,slot.y,texture.key,texture.frame)
+        .setOrigin(.5,!illustrated&&this.paintedAtlases.has(actor)?352/384:1).setDepth(8));
       if(illustrated){
         const source=sprite.texture.getSourceImage() as HTMLImageElement;
         const size=fitArtwork(source.width,source.height,slot.maxWidth,slot.maxHeight);
         sprite.setDisplaySize(size.width,size.height);
-      }else sprite.setScale(Math.max(.8,Math.min(1.35,w/760)));
+      }else {
+        const size=fitArtwork(sprite.width,sprite.height,slot.maxWidth,slot.maxHeight);
+        sprite.setDisplaySize(size.width,size.height);
+      }
       this.track(this.add.ellipse(slot.x,slot.y-3,Math.min(65,w*.10),10,0x07111b,.35).setDepth(4));
       const ring=this.track(this.add.ellipse(slot.x,slot.y-4,Math.min(75,w*.12),13,0x80ead7,.08).setStrokeStyle(1.5,0x80ead7,.9).setDepth(5));
       this.battleActors.push({heroId:hero.id,sprite,ring});

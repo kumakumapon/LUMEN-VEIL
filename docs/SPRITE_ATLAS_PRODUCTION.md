@@ -14,5 +14,14 @@
 - Tests verify six valid 4×4 sheets, asset references, browser sprite resolution, and full desktop/mobile story path.
 - Confirm GitHub Actions green before marking the PR ready.
 
-## Limitations
-These are authored scalable vector sprites, **not** image-model-produced painterly sprite sheets. A future art pass can replace the SVG atlas sources with hand-painted WebP/PNG atlases without changing the frame API.
+## Painted production pass (issue #17)
+The default assets are now six original generated painterly WebP sheets at the same
+1024×1536 resolution and frame API. The SVG sources above remain load-failure
+fallbacks, followed by the procedural Canvas figures. See CHARACTER_DESIGNS.md.
+
+Generated source sheets are packed with `scripts/pack-art.py sources.json`
+(Pillow required). Each actor uses one shared scale and bottom-center foot anchor
+(128,352). Normalization only crops, scales and packs source artwork. It never
+synthesizes intermediate poses. `tests/art-assets.py` checks alpha, bounds, anchors,
+expression dimensions and transfer budgets. Original generated sheets are retained
+in the workspace `generated_images` directory; they are not runtime downloads.

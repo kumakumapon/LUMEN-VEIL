@@ -22,7 +22,8 @@ test('all six editable HD-2D atlases contain 4 directions and 4 gait frames',()=
 });
 test('Phaser uses static atlas frames, and retains procedural fallback',()=>{
   const world=readFileSync(new URL('../src/world.ts',import.meta.url),'utf8');
-  assert.match(world,/this\.load\.svg\('atlas-'\+id/);
+  assert.match(world,/this\.load\.image\('atlas-'\+id/);
+  assert.match(world,/this\.load\.svg\('vector-'\+actor/);
   assert.match(world,/texture\.add\(dir\+'-'\+col,0,col\*256,row\*384,256,384\)/);
   assert.match(world,/if\(this\.loadedAtlases\.has\(id\)\)continue/);
   assert.match(world,/fieldTextureKey\(id,dir,frame\)/);

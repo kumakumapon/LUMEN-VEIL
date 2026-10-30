@@ -53,6 +53,11 @@ APT rewriting to the game changes without a failing runner log. Recommendation:
 close #15 as unnecessary for the current runner, retaining its history if the
 problem recurs. This implementation does not merge or close remote pull requests.
 
+PR #18 run 41067026322 subsequently failed before browser tests because
+`ubuntu-latest` resolved to Ubuntu 26.04, which Playwright 1.55 does not support.
+The E2E runner is now pinned to supported Ubuntu 24.04. This was an OS compatibility
+failure, not an APT mirror failure.
+
 ## Deliberately separate roadmap
 
 Keep the existing original Web Audio score; file-based music is optional and has

@@ -318,6 +318,8 @@ main{min-height:calc(100vh - 120px)}.title-screen{position:relative;min-height:m
 .cinematic-portrait-frame{position:relative;min-height:290px;overflow:hidden;border-radius:9px;background:radial-gradient(ellipse at 50% 30%,#44657c 0%,#1a3249 52%,#0a1b2e 100%);border:1px solid #e8d4a07d}
 .cinematic-portrait-glow{position:absolute;inset:0;background:radial-gradient(circle at 70% 25%,#ffe2aa44,transparent 50%),linear-gradient(0deg,#0b1d34 0%,transparent 35%);z-index:1;pointer-events:none}
 .cinematic-conversation .dialogue-portrait{display:block;width:100%;height:100%;min-height:290px;max-height:420px;object-fit:cover;object-position:center 20%;border:0;border-radius:0;box-shadow:none;grid-row:auto}
+.cinematic-conversation .dialogue-portrait[data-art-source^="expression-"]{object-fit:contain;background:#13243a}
+.cinematic-conversation .dialogue-portrait[hidden]{display:none}
 .cinematic-dialogue-copy{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:8px 2px}
 .cinematic-dialogue-eyebrow{font-size:10px;letter-spacing:.18em;color:#8ed6d0;font-weight:700}
 .cinematic-conversation h3{font-family:'Noto Serif JP',serif;font-size:clamp(22px,2.4vw,31px);letter-spacing:.07em;color:#f5e8c9;margin:0;grid-column:auto}

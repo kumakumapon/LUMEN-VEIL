@@ -4,8 +4,7 @@ import { EQUIPMENT, NPC_DIALOGUES, enemyIntent, equipItem, findTreasure, freshPr
 import { saveProgress, loadProgress, importAdventure, exportAdventure } from './expansion-save.mjs';
 import { QUESTS, SHOP, freshLiving, acceptQuest, claimQuest, questStatus, buyItem, tacticalIntent } from './living.mjs';
 import { saveLiving, loadLiving } from './living-save.mjs';
-import { portraitForSpeaker } from './portrait-map.mjs';
-import { animePortraitForSpeaker, npcAtlasObjectPosition } from './anime-portraits.mjs';
+import { setDialoguePortrait } from './dialogue-art.mjs';
 import { firstSteps, dialogueMood, dialogueCue } from './experience.mjs';
 const $ = id => document.getElementById(id);
 let state = null;
@@ -330,7 +329,7 @@ function showConversation(lines) {
   const line=document.createElement('p');line.className='cinematic-dialogue-line';line.setAttribute('aria-live','polite');
   const controls=document.createElement('div');controls.className='cinematic-dialogue-controls';
   const progress=document.createElement('span');progress.className='cinematic-dialogue-progress';progress.setAttribute('aria-label','会話の進行状況');
-  const hint=document.createElement('span');hint.className='cinematic-dialogue-hint';hint.textContent='Enter / Space で進む';
+  const hint=document.createElement('span');hint.className='cinematic-dialogue-hint';hint.textContent='Enter / Space で進む · Esc で閉じる';
   const next=document.createElement('button');next.type='button';next.className='primary-btn cinematic-next';
   controls.append(progress,hint,next);
   story.append(eyebrow,speaker,line,controls);
@@ -353,23 +352,7 @@ function showConversation(lines) {
     container.dataset.mood=mood;
     portraitFrame.dataset.mood=mood;
     window.dispatchEvent(new CustomEvent('lv:sfx',{detail:{name:index===0?'dialogue-open':dialogueCue(mood)}}));
-    const filename=portraitForSpeaker(current.speaker);
-    const anime=animePortraitForSpeaker(current.speaker);
-    portrait.onerror=()=>{
-      if(anime&&portrait.dataset.artSource==='anime-atlas'){
-        portrait.dataset.artSource='anime-webp-fallback';
-        portrait.src=`${import.meta.env.BASE_URL}assets/${anime.fallback}`;
-        return;
-      }
-      portrait.onerror=()=>{portrait.onerror=null;portrait.src=`${import.meta.env.BASE_URL}assets/portrait-vald.webp`;};
-      portrait.src=`${import.meta.env.BASE_URL}assets/${filename}`;
-      portrait.style.objectPosition='center 20%';
-      portrait.dataset.artSource='fallback';
-    };
-    portrait.style.objectPosition=anime?`${npcAtlasObjectPosition(anime.column)} center`:'center 20%';
-    portrait.src=`${import.meta.env.BASE_URL}assets/${anime?.file??filename}`;
-    portrait.dataset.artSource=anime?'anime-atlas':'existing-portrait';
-    portrait.alt=`${current.speaker}の立ち絵`;
+    setDialoguePortrait(portrait,current.speaker,mood,import.meta.env.BASE_URL);
     portraitFrame.dataset.speaker=current.speaker;
     progress.textContent=`${String(index+1).padStart(2,'0')} / ${String(lines.length).padStart(2,'0')}`;
     next.textContent=index===lines.length-1?'会話を終える':'次へ  ›';

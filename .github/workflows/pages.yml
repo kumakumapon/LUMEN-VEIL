@@ -45,7 +45,7 @@ jobs:
           python-version: '3.12'
       - name: Install Playwright browser
         run: |
-          python -m pip install playwright==1.55.0
+          python -m pip install playwright==1.55.0 Pillow==11.3.0
           python -m playwright install --with-deps chromium
       - name: Build production site for browser test
         run: npm run build
@@ -53,6 +53,7 @@ jobs:
         run: |
           nohup npm run preview > /tmp/lumen-serve.log 2>&1 &
           sleep 2
+          python tests/art-assets.py
           python tests/e2e.py
       - name: Upload browser screenshots
         if: always()

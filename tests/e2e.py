@@ -1,379 +1,104 @@
-"""Run locally with `python tests/e2e.py` after `npm run dev` (Playwright and Chromium required)."""
+"""Journey redesign: viewport layout, actual approach/confirm, story, saves, battles."""
 import os
+import json
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
+ROOT=os.environ.get('SITE_URL','http://127.0.0.1:4173/LUMEN-VEIL/')
+OUT=Path(os.environ.get('SCREENSHOT_DIR','screenshots'));OUT.mkdir(parents=True,exist_ok=True)
 
-ROOT = os.environ.get('SITE_URL', 'http://127.0.0.1:4173/LUMEN-VEIL/')
-OUT = Path(os.environ.get('SCREENSHOT_DIR', str(Path.cwd() / 'screenshots')))
-OUT.mkdir(exist_ok=True, parents=True)
+def conversations(page):
+    for _ in range(15):
+        if not page.locator('.conversation').is_visible():return
+        page.locator('.cinematic-next').click()
+    raise AssertionError('Conversation did not finish')
 
-def explore(page, id):
-    # The optional accessibility menu replaces the persistent choice grid.
-    # Wait for the dialog's asynchronous close event to dispatch the hotspot.
-    sequence=page.evaluate("Number(document.documentElement.dataset.hotspotSeq||0)")
-    touch=page.evaluate('navigator.maxTouchPoints > 0')
-    trigger=page.locator('#btn-nearby')
-    target=page.locator(f'#modal-content [data-hotspot="{id}"]')
-    trigger.tap() if touch else trigger.click()
-    target.tap() if touch else target.click()
-    page.wait_for_function("previous => Number(document.documentElement.dataset.hotspotSeq||0) > previous",arg=sequence)
+def approach(page,id):
+    expect(page.locator('#phaser-stage canvas')).to_be_visible()
+    page.wait_for_function("document.querySelector('canvas')?.dataset.area === document.documentElement.dataset.fieldArea")
+    page.locator('#btn-nearby').click()
+    page.locator(f'.nearby-menu [data-hotspot="{id}"]').click()
+    expect(page.locator('#btn-interact')).to_have_attribute('data-target-id',id,timeout=20000)
+    expect(page.locator('#btn-interact')).to_be_enabled()
+    page.wait_for_timeout(800)
+    page.locator('#btn-interact').click()
 
-def assert_field_layout(page, width, height):
-    """Interactive field controls must never cover the canvas or each other."""
-    page.set_viewport_size({'width':width,'height':height})
-    page.wait_for_timeout(180)
-    geometry=page.evaluate("""() => {
-      const ids=['landscape','journey-guide','field-actions','field-onboarding','btn-guide-route',
-        'btn-guide-help','btn-nearby','btn-interact','play-layout'];
-      const rects={};
-      for(const id of ids){
-        const el=document.getElementById(id) || document.querySelector('.'+id);
-        if(!el)throw new Error('Missing layout element '+id);
-        const r=el.getBoundingClientRect();
-        rects[id]={left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};
-      }
-      return {rects,overflow:document.documentElement.scrollWidth-window.innerWidth};
-    }""")
-    boxes=geometry['rects']
-    assert geometry['overflow'] <= 2, f"Horizontal overflow at {width}: {geometry['overflow']}"
-    def intersects(a,b):
-        return min(a['right'],b['right'])-max(a['left'],b['left']) > 1 and min(a['bottom'],b['bottom'])-max(a['top'],b['top']) > 1
-    for id in ['journey-guide','field-actions','field-onboarding','btn-guide-route','btn-guide-help','btn-nearby','btn-interact']:
-        assert not intersects(boxes['landscape'],boxes[id]), f"Field obscured by {id} at {width}x{height}"
-        assert boxes[id]['width'] > 0 and boxes[id]['height'] > 0
-        assert boxes[id]['left'] >= -1 and boxes[id]['right'] <= width+2, f"{id} exceeds viewport"
-    assert not intersects(boxes['journey-guide'],boxes['field-actions']), f"Quest card overlaps actions at {width}"
-    assert not intersects(boxes['field-actions'],boxes['play-layout']), f"Actions overlap dialogue at {width}"
-    assert not intersects(boxes['journey-guide'],boxes['play-layout']), f"Quest card overlaps dialogue at {width}"
-    assert not intersects(boxes['field-onboarding'],boxes['journey-guide']), f"Guide overlaps objective at {width}"
-    assert not intersects(boxes['field-onboarding'],boxes['field-actions']), f"Guide overlaps controls at {width}"
-    assert not intersects(boxes['field-onboarding'],boxes['play-layout']), f"Guide overlaps dialogue at {width}"
+def solve(page,index):
+    expect(page.locator('[data-memory-answer]')).to_have_count(2)
+    page.locator(f'[data-memory-answer="{index}"]').click()
+    expect(page.locator('.conversation')).to_be_visible()
+    conversations(page)
 
-
-def capture_matrix(page, name, field=False):
-    previous=page.viewport_size
+def layout(page,name):
     for width,height in [(320,640),(390,844),(768,1024),(1440,900)]:
-        page.set_viewport_size({'width':width,'height':height})
-        page.wait_for_timeout(200)
-        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 2'), name
-        if field and page.locator('#field-onboarding').is_visible():
-            assert_field_layout(page,width,height)
-        page.screenshot(path=str(OUT / f'{name}-{width}.png'),full_page=True)
-    page.set_viewport_size(previous)
+        page.set_viewport_size({'width':width,'height':height});page.wait_for_timeout(220)
+        assert page.evaluate('document.documentElement.scrollWidth <= innerWidth+1')
+        assert page.evaluate('document.documentElement.scrollHeight <= innerHeight+1'),f'{name} page scroll at {width}'
+        ids=['#commands','#party','#foe-intent'] if name=='battle' else ['#btn-interact','#btn-nearby','#btn-memories']
+        for id in ids:
+            box=page.locator(id).bounding_box()
+            assert box and box['y']>=0 and box['y']+box['height']<=height, (name,width,id,box)
+        page.screenshot(path=str(OUT/f'journey-{name}-{width}.png'))
+    page.set_viewport_size({'width':390,'height':844})
 
-def finish_fight(page):
+def fight(page):
     for _ in range(45):
-        if page.locator('#battle-panel').is_hidden():
-            return
-        expect(page.locator('[data-command="attack"]')).to_be_enabled(timeout=10000)
-        if page.locator('[data-command="echo"]').is_enabled():
-            page.locator('[data-command="echo"]').click()
-        elif page.locator('[data-command="arts"]').is_enabled():
-            page.locator('[data-command="arts"]').click()
-        else:
-            page.locator('[data-command="attack"]').click()
+        if page.locator('#battle-panel').is_hidden():return
+        button=page.locator('[data-command="echo"]')
+        if button.is_enabled():button.click()
+        elif page.locator('[data-command="arts"]').is_enabled():page.locator('[data-command="arts"]').click()
+        else:page.locator('[data-command="attack"]').click()
     raise AssertionError('Battle did not finish')
 
 with sync_playwright() as p:
-    chromium = os.environ.get('CHROMIUM_EXECUTABLE')
-    launch = {'executable_path': chromium} if chromium else {}
-    browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-dev-shm-usage'], **launch)
-    page = browser.new_page(viewport={'width': 1440, 'height': 900}, device_scale_factor=1, accept_downloads=True)
-    failures = []
-    page.on('pageerror', lambda exc: failures.append(str(exc)))
-    page.goto(ROOT, wait_until='domcontentloaded')
-    page.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
-    expect(page.locator('#hero-title')).to_be_visible()
-    page.screenshot(path=str(OUT / 'title-desktop.png'), full_page=True)
-    page.locator('#btn-start').click()
-    expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
-    expect(page.locator('#hotspots')).to_be_hidden()
-    expect(page.locator('#btn-nearby')).to_be_visible()
-    expect(page.locator('#btn-interact')).to_be_visible()
-    expect(page.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
-    capture_matrix(page,'harbor',field=True)
-    # All six static sprite sheets must load, not just the procedural fallback.
+    browser=p.chromium.launch(headless=True,executable_path=os.environ.get('CHROMIUM_EXECUTABLE'),args=['--no-sandbox','--disable-dev-shm-usage'])
+    page=browser.new_page(viewport={'width':390,'height':844},has_touch=True,accept_downloads=True)
+    failures=[];page.on('pageerror',lambda error:failures.append(str(error)))
+    page.goto(ROOT);page.locator('#btn-start').tap();conversations(page)
     expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','painted-atlas')
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-atlas-count','6')
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-resolution','256x384')
-    # A genuine Phaser Canvas is running under the DOM-accessible controls.
-    assert page.locator('#phaser-stage canvas').count() == 1
-    expect(page.locator('#journey-goal')).to_have_text('港にいる記録士に話しかける')
-    expect(page.locator('#field-onboarding')).to_be_visible()
-    expect(page.locator('#field-onboarding')).to_have_attribute('data-step','1')
-    expect(page.locator('#onboarding-title')).to_have_text('まずはセナと話そう')
-    for w,h in [(320,640),(390,844),(768,1024),(1440,900)]:
-        assert_field_layout(page,w,h)
-    page.locator('#btn-onboarding-dismiss').click()
-    expect(page.locator('#field-onboarding')).to_be_hidden()
-    page.locator('#btn-guide-help').click()
-    expect(page.locator('#modal-title')).to_have_text('操作ガイド')
-    expect(page.locator('.control-guide')).to_contain_text('WASD')
-    page.locator('.control-guide-restore').click()
-    expect(page.locator('#field-onboarding')).to_be_visible()
-    canvas = page.locator('#phaser-stage canvas')
-    page.wait_for_function("!!document.querySelector('#phaser-stage canvas')?.dataset.playerX")
-    before_x = float(canvas.get_attribute('data-player-x'))
-    # Hold a real movement key; the player must move and remain there.
-    page.keyboard.down('d')
-    page.wait_for_timeout(450)
-    page.keyboard.up('d')
-    page.wait_for_timeout(100)
-    moved_x = float(canvas.get_attribute('data-player-x'))
-    assert moved_x > before_x + .01, f'Player failed to walk: {before_x} -> {moved_x}'
-    expect(canvas).to_have_attribute('data-hero-facing','right')
-    # The sprite must change facing when walking the other direction.
-    page.keyboard.down('a')
-    page.wait_for_timeout(220)
-    page.keyboard.up('a')
-    expect(canvas).to_have_attribute('data-hero-facing','left')
-    page.keyboard.down('d')
-    page.wait_for_timeout(220)
-    page.keyboard.up('d')
-    page.wait_for_timeout(100)
-    moved_x=float(canvas.get_attribute('data-player-x'))
-    page.set_viewport_size({'width': 1200, 'height': 800})
-    page.wait_for_timeout(450)
-    resized_x = float(canvas.get_attribute('data-player-x'))
-    assert abs(resized_x - moved_x) < .035, f'Player teleported on resize: {moved_x} -> {resized_x}'
-    page.set_viewport_size({'width': 1440, 'height': 900})
-    page.wait_for_timeout(300)
-    # A beginner can follow the main quest without the legacy choice list.
-    page.locator('#btn-guide-route').click()
-    expect(page.locator('#journey-goal')).to_have_text('消えた案内板を記憶灯で調べる', timeout=20000)
-    expect(page.locator('#field-onboarding')).to_have_attribute('data-step','2')
-    page.screenshot(path=str(OUT / 'guided-field-desktop.png'), full_page=True)
-    # Optional exploration, multi-line NPC conversations, equipment and XP sidecar.
-    page.locator('#btn-quests').click()
-    expect(page.locator('#modal-title')).to_have_text('依頼の記録')
-    page.locator('[data-quest-action="letter"]').click()
-    expect(page.locator('[data-quest-action="letter"]')).to_have_text('進行中')
-    page.locator('#btn-close').click()
-    explore(page, 'to-market')
-    expect(page.locator('#area-title')).to_have_text('白帆の市場')
-    page.screenshot(path=str(OUT / 'market-npcs-desktop.png'), full_page=True)
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','merchant,navigator')
-    capture_matrix(page,'market',field=True)
-    page.locator('#btn-shop').click()
-    expect(page.locator('#modal-title')).to_have_text('白帆の市場 — 装備店')
-    page.locator('[data-buy-item="sunsteel"]').click()
-    expect(page.locator('[data-buy-item="sunsteel"]')).to_have_text('購入済み')
-    page.locator('#btn-close').click()
-    explore(page, 'merchant')
-    expect(page.locator('#modal-title')).to_have_text('会話')
-    expect(page.locator('.conversation h3')).to_have_text('商人ユイ')
-    expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','calm')
-    expect(page.locator('body')).to_have_class('dialogue-focus')
-    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','expression-avif')
-    assert page.locator('.dialogue-portrait').get_attribute('src').endswith('expressions/merchant-calm.avif')
-    page.wait_for_function("document.querySelector('.dialogue-portrait')?.naturalWidth === 384",timeout=12000)
-    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
-    expect(page.locator('.dialogue-cinematic')).to_be_visible()
-    capture_matrix(page,'dialogue',field=False)
-    page.screenshot(path=str(OUT / 'dialogue-anime-desktop.png'), full_page=True)
-    page.set_viewport_size({'width':390,'height':844})
-    frame=page.locator('.cinematic-portrait-frame').bounding_box()
-    assert frame and frame['width'] <= 180 and frame['height'] >= 140
-    assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 2')
-    page.screenshot(path=str(OUT / 'dialogue-anime-mobile.png'), full_page=True)
-    page.set_viewport_size({'width':1440,'height':900})
-    page.keyboard.press('Enter')
-    expect(page.locator('.conversation h3')).to_have_text('ノエル')
-    expect(page.locator('.cinematic-conversation')).to_have_attribute('data-mood','tense')
-    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('02 / 03')
-    page.keyboard.press('Space')
-    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-expression','worry')
-    page.locator('.conversation button').click()
-    expect(page.locator('body')).not_to_have_class('dialogue-focus')
-    explore(page, 'market-cache')
-    page.locator('#btn-gear').click()
-    expect(page.locator('#modal-title')).to_have_text('装備・育成')
-    capture_matrix(page,'menu')
-    page.locator('[data-gear-hero="noel"][data-gear-slot="weapon"]').select_option('skyblade')
-    expect(page.locator('[data-gear-hero="noel"][data-gear-slot="weapon"]')).to_have_value('skyblade')
-    page.locator('#btn-close').click()
-    explore(page, 'to-harbor')
-    explore(page, 'to-observatory')
-    expect(page.locator('#area-title')).to_have_text('星環の観測塔')
-    capture_matrix(page,'observatory',field=True)
-    page.screenshot(path=str(OUT / 'observatory-npc-desktop.png'), full_page=True)
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','scholar')
-    explore(page, 'scholar')
-    expect(page.locator('.conversation h3')).to_have_text('星見のエル')
-    expect(page.locator('.dialogue-portrait')).to_have_attribute('data-art-source','expression-avif')
-    page.keyboard.press('Escape')
+    layout(page,'explore')
+    canvas=page.locator('canvas');x=canvas.get_attribute('data-player-x')
+    page.keyboard.down('d');page.wait_for_timeout(300);page.keyboard.up('d')
+    assert canvas.get_attribute('data-player-x')!=x
+    approach(page,'sena');conversations(page)
+    # Route assistance stops before interaction.
+    page.locator('#btn-guide-route').click();page.wait_for_timeout(2200)
     expect(page.locator('#overlay')).not_to_be_visible()
-    # Keyboard handler is removed on close; subsequent dialogs must not double-advance.
-    explore(page, 'scholar')
-    expect(page.locator('.cinematic-dialogue-progress')).to_have_text('01 / 03')
+    page.locator('#btn-interact').click()
+    page.locator('[data-memory-answer="1"]').click()
+    expect(page.get_by_role('status').filter(has_text='もう一度')).to_be_visible()
+    solve(page,0)
+    expect(page.locator('#journey-goal')).to_contain_text('整備士')
+    approach(page,'letter');approach(page,'to-market')
+    approach(page,'merchant');conversations(page)
+    approach(page,'market-cache');approach(page,'to-harbor');approach(page,'to-observatory')
+    approach(page,'scholar');conversations(page)
+    page.locator('#btn-memories').click();page.locator('[data-memory="maker"]').click();solve(page,1)
+    approach(page,'to-harbor');approach(page,'to-corridor');approach(page,'ritz')
+    layout(page,'battle');fight(page)
+    approach(page,'lamp');conversations(page);approach(page,'badge');approach(page,'key');conversations(page)
+    page.locator('#btn-memories').click();page.locator('[data-memory="mira"]').click();solve(page,0)
+    # New sidecar progress survives a real IndexedDB reload.
+    page.locator('#btn-main-menu').click();page.get_by_role('button',name='セーブする 現在の冒険をこの端末に保存').click()
+    expect(page.locator('#notice')).to_have_text('記憶を保存しました。')
+    page.reload();page.locator('#btn-title-continue').click()
+    page.locator('#btn-memories').click();expect(page.locator('[data-memory="mira"]')).to_be_disabled();page.locator('#btn-close').click()
+    approach(page,'to-vault');approach(page,'boss');fight(page)
+    approach(page,'to-dock');approach(page,'escape')
+    page.locator('[data-memory-choice="harbor"]').click()
+    expect(page.locator('#ending-copy')).to_contain_text('港の灯')
+    page.locator('#btn-main-menu').click();page.get_by_role('button',name='冒険の記録 集めた記憶とセーブデータ').click()
+    with page.expect_download() as download:page.get_by_role('button',name='セーブJSONを書き出す').click()
+    assert download.value.suggested_filename.endswith('.json')
+    legacy=json.loads(Path(download.value.path()).read_text())
+    legacy.pop('living',None);legacy.pop('expansion',None)
+    legacy['phase']='explore';legacy['area']='dock';legacy['flags']['escaped']=False
     page.locator('#btn-close').click()
-    explore(page, 'observatory-cache')
-    explore(page, 'to-harbor')
-    expect(page.locator('#area-title')).to_have_text('浮遊港オルテ')
-    # Sena was already recruited by the guided first quest.
-    # A recruited companion must not remain duplicated as a field NPC.
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-npc-skins','')
-    page.locator('#btn-nearby').click()
-    expect(page.locator('#modal-content [data-hotspot="sena"]')).to_have_count(0)
-    page.locator('#btn-close').click()
-    explore(page, 'sign')
-    explore(page, 'letter')
-    page.locator('#btn-quests').click()
-    expect(page.locator('[data-quest-action="letter"]')).to_have_text('報酬を受け取る')
-    page.locator('[data-quest-action="letter"]').click()
-    expect(page.locator('[data-quest-action="letter"]')).to_have_text('達成済み')
-    page.locator('#btn-close').click()
-    explore(page, 'to-corridor')
-    expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
-    # Prevent a stale Phaser walk callback from undoing a fast DOM area transition.
-    page.wait_for_timeout(400)
-    expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
-    capture_matrix(page,'corridor',field=True)
-    # Reload to verify IndexedDB writes and resume work.
-    expect(page.locator('#notice')).to_contain_text('記憶を保存しました。')
-    page.reload(wait_until='domcontentloaded')
-    expect(page.locator('#title-screen')).to_be_visible()
-    page.locator('#btn-title-continue').click()
-    expect(page.locator('#area-title')).to_have_text('回廊の整備区画')
-    page.locator('#btn-gear').click()
-    expect(page.locator('[data-gear-hero="noel"][data-gear-slot="weapon"]')).to_have_value('skyblade')
-    page.locator('#btn-close').click()
-    explore(page, 'ritz')
-    expect(page.locator('#battle-panel')).to_be_visible()
-    expect(page.locator('#atb-fill')).to_be_visible()
-    expect(page.locator('#atb-status')).to_have_text('WAIT / READY',timeout=10000)
-    capture_matrix(page,'battle',field=False)
-    page.screenshot(path=str(OUT / 'battle-desktop.png'), full_page=True)
-    finish_fight(page)
-    explore(page, 'lamp')
-    explore(page, 'badge')
-    explore(page, 'key')
-    explore(page, 'to-vault')
-    capture_matrix(page,'vault',field=True)
-    explore(page, 'boss')
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-enemy-art', 'illustrated')
-    expect(page.locator('#phaser-stage canvas')).to_have_attribute('data-battle-background', 'battle-arena')
-    expect(page.locator('.walking-guide')).to_be_hidden()
-    page.screenshot(path=str(OUT / 'boss-illustrated-desktop.png'), full_page=True)
-    finish_fight(page)
-    explore(page, 'to-dock')
-    capture_matrix(page,'dock',field=True)
-    explore(page, 'escape')
-    expect(page.locator('#ending-title')).to_have_text('名前は、まだここに。')
-    assert page.locator('#ending-copy').inner_text().startswith('消えた手紙と航海士ミラ')
-    page.locator('#btn-journal').click()
-    expect(page.locator('#modal-title')).to_have_text('冒険の記録')
-    with page.expect_download() as transfer:
-        page.get_by_role('button', name='セーブJSONを書き出す').click()
-    assert transfer.value.suggested_filename.endswith('.json')
-    page.locator('#btn-close').click()
-    # Narrow screen and touch-style button presses.
-    mobile = browser.new_page(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
-    mobile.on('pageerror', lambda exc: failures.append(str(exc)))
-    mobile.goto(ROOT)
-    mobile.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
-    expect(mobile.locator('#hero-title')).to_be_visible()
-    assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
-    mobile.screenshot(path=str(OUT / 'title-mobile.png'), full_page=True)
-    mobile.locator('#btn-start').tap()
-    expect(mobile.locator('#btn-main-menu')).to_be_visible()
-    mobile.locator('#btn-main-menu').tap()
-    expect(mobile.locator('#modal-title')).to_have_text('冒険メニュー')
-    expect(mobile.locator('.adventure-menu')).to_contain_text('装備・育成')
-    mobile.locator('#btn-close').tap()
-    expect(mobile.locator('#journey-guide')).to_be_visible()
-    expect(mobile.locator('#btn-guide-route')).to_be_visible()
-    expect(mobile.locator('#hotspots')).to_be_hidden()
-    expect(mobile.locator('#btn-nearby')).to_be_visible()
-    mobile.locator('#btn-nearby').tap()
-    expect(mobile.locator('#modal-content [data-hotspot="sena"]')).to_be_visible()
-    mobile.locator('#btn-close').tap()
-    assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
-    expect(mobile.locator('#phaser-stage canvas')).to_be_visible(timeout=12000)
-    mobile.screenshot(path=str(OUT / 'explore-mobile.png'), full_page=True)
-    explore(mobile, 'sena')
-    # NPC cinematic layout must fit mobile width and remain accessible.
-    explore(mobile, 'sign')
-    explore(mobile, 'to-corridor')
-    explore(mobile, 'ritz')
-    expect(mobile.locator('#phaser-stage canvas')).to_have_attribute('data-battle-art', 'illustrated')
-    mobile.screenshot(path=str(OUT / 'battle-illustrated-mobile.png'), full_page=True)
-    assert mobile.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1')
-    finish_fight(mobile)
-    mobile.locator('#btn-main-menu').tap()
-    mobile.get_by_role('button',name='セーブする 現在の冒険をこの端末に保存').tap()
-    expect(mobile.locator('#notice')).to_contain_text('記憶を保存しました。')
-    mobile.reload()
-    mobile.locator('#btn-title-continue').tap()
-    expect(mobile.locator('#area-title')).to_have_text('回廊の整備区画')
-    # Legacy production IndexedDB save must survive the TypeScript/Vite upgrade.
-    fixture = {
-        'version': 1, 'phase':'explore', 'area':'corridor',
-        'flags': {'sena': True, 'sign': True, 'ritz': True, 'lamp': True, 'key': False, 'boss': False, 'escaped': False},
-        'records':['letter','badge'],
-        'party': [
-            {'id':'noel','hp':149,'mp':30},
-            {'id':'sena','hp':120,'mp':53},
-            {'id':'ritz','hp':210,'mp':42},
-        ],
-        'difficulty':'normal','resonance':64,'battle':None,
-        'narrative':'リッツが記憶灯を修復した。',
-    }
-    legacy = browser.new_page()
-    legacy.on('pageerror', lambda exc: failures.append(str(exc)))
-    legacy.goto(ROOT, wait_until='domcontentloaded')
-    legacy.wait_for_function("document.documentElement.dataset.lumenReady === 'true'", timeout=15000)
-    legacy.evaluate("""async data => {
-      const db = await new Promise((resolve, reject) => {
-        const req = indexedDB.open('lumen-veil-save-v1', 1);
-        req.onupgradeneeded = () => req.result.createObjectStore('slots');
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('slots', 'readwrite');
-        tx.objectStore('slots').put(JSON.stringify(data), 'chapter-zero');
-        tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error);
-      });
-      db.close();
-    }""", fixture)
-    legacy.reload()
-    legacy.locator('#btn-title-continue').click()
-    expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
-    assert '64%' in legacy.locator('#resonance-number').inner_text()
-    assert legacy.locator('#party').inner_text().find('149/180') >= 0
-    assert legacy.locator('#party').inner_text().find('120/145') >= 0
-    # JSON import of a corrupted file must not erase the IndexedDB save.
-    legacy.locator('#import-file').set_input_files({'name':'bad.json', 'mimeType':'application/json', 'buffer':b'{broken'})
-    expect(legacy.locator('#notice')).to_contain_text('インポートに失敗')
-    legacy.reload()
-    legacy.locator('#btn-title-continue').click()
-    expect(legacy.locator('#area-title')).to_have_text('回廊の整備区画')
-    assert not failures, f'Uncaught page exceptions: {failures}' 
-    print('PASS: desktop title, journey, battle, IndexedDB resume, ending, JSON export, mobile viewport and taps')
-    # A failed art request must fall back to procedural walking sprites.
-    fallback=browser.new_page(viewport={'width':1024,'height':768})
-    fallback.route('**/sprites/noel.webp',lambda route:route.abort())
-    fallback.goto(ROOT,wait_until='domcontentloaded')
-    fallback.locator('#btn-start').click()
-    expect(fallback.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','mixed-atlas-fallback',timeout=15000)
-    assert fallback.locator('#phaser-stage canvas').get_attribute('data-painted-atlas-count') == '5'
-    assert '"noel":"svg"' in fallback.locator('#phaser-stage canvas').get_attribute('data-sprite-sources')
-    fallback.keyboard.down('d')
-    fallback.wait_for_timeout(260)
-    fallback.keyboard.up('d')
-    fallback.close()
-    procedural=browser.new_page(viewport={'width':390,'height':844},reduced_motion='reduce')
-    procedural.route('**/sprites/**',lambda route:route.abort())
-    procedural.goto(ROOT,wait_until='domcontentloaded')
-    procedural.locator('#btn-start').click()
-    expect(procedural.locator('#phaser-stage canvas')).to_have_attribute('data-sprite-source','canvas-fallback',timeout=15000)
-    procedural.keyboard.down('d')
-    procedural.wait_for_timeout(250)
-    procedural.keyboard.up('d')
-    expect(procedural.locator('#phaser-stage canvas')).to_have_attribute('data-hero-facing','right')
-    procedural.screenshot(path=str(OUT/'fallback-canvas-390.png'),full_page=True)
-    procedural.close()
+    page.locator('#import-file').set_input_files({'name':'bad.json','mimeType':'application/json','buffer':b'{invalid'})
+    expect(page.locator('#notice')).to_contain_text('インポートに失敗')
+    page.locator('#import-file').set_input_files({'name':'legacy.json','mimeType':'application/json','buffer':json.dumps(legacy).encode()})
+    expect(page.locator('#area-title')).to_have_text('雲海の船着き場')
+    approach(page,'escape');page.locator('[data-memory-choice="letter"]').click()
+    expect(page.locator('#ending-copy')).to_contain_text('ミラへの手紙')
+    assert not failures,failures
+    print('PASS: four viewports, approach/confirm, story and all memory puzzles, extra-action combat, save/resume, ending choice and JSON export')
     browser.close()
-

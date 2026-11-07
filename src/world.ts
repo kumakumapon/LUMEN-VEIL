@@ -64,6 +64,7 @@ export class WorldScene extends Phaser.Scene {
   private cancelCallback: () => void;
   private interactCallback: () => void;
   private proximityId: string | null = null;
+  private selectedSite:string|null=null;
   private walkGeneration = 0;
   private lastFieldPosition: { area: Area; x: number; y: number } | null = null;
   private drawnArea: Area | null = null;
@@ -81,7 +82,7 @@ export class WorldScene extends Phaser.Scene {
     this.interactCallback = () => this.interactNearby();
     this.resetCallback = () => { this.lastFieldPosition=null;this.drawnArea=null;this.sceneKey='';this.draw(); };
     this.renderCallback = event => this.sync((event as CustomEvent<GameEvent>).detail.state);
-    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail,true);
+    this.walkCallback = event => this.walkTo((event as CustomEvent<{ id: string; area: Area }>).detail,false);
     this.combatCallback = event => this.combatEffect((event as CustomEvent<{ command: Command; broke: boolean; won: boolean }>).detail);
     this.settingsCallback = event => { this.reducesMotion = !!(event as CustomEvent<{ reduceMotion: boolean }>).detail.reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches; };
   }
@@ -176,14 +177,18 @@ export class WorldScene extends Phaser.Scene {
   private relayout(): void {
     // RESIZE fires when HUD/layout height changes. Rebuild scenery but preserve
     // the player position in normalized map coordinates.
-    if (this.state) this.draw();
+    if (this.state) {
+      const target=this.selectedSite;
+      this.draw();
+      if(target&&this.state.phase==='explore')this.walkTo({id:target,area:this.state.area});
+    }
   }
   private wipe(): void {
     this.walkGeneration++;
     for (const obj of [...this.sceneObjects, ...this.markerObjects]) obj.destroy();
     this.sceneObjects = []; this.markerObjects = []; this.avatars = []; this.avatarShadows=[]; this.npcActors=[]; this.battleActors=[]; this.bg = null; this.foe = null;
     this.tweens.killAll(); this.isWalking = false;
-    this.proximityId=null;
+    this.proximityId=null;this.selectedSite=null;
     window.dispatchEvent(new CustomEvent('lv:proximity',{detail:{id:null,name:null}}));
     delete this.game.canvas.dataset.battleArt; delete this.game.canvas.dataset.enemyArt; delete this.game.canvas.dataset.battleBackground;
   }
@@ -224,6 +229,7 @@ export class WorldScene extends Phaser.Scene {
       const atmosphere=this.track(this.add.graphics().setDepth(.5));
       drawSceneAtmosphere(atmosphere,state.area,w,h);
       this.drawTilemap(w,h,state.area);
+      if(state.flags.sign&&state.area==='harbor'){const light=this.track(this.add.graphics().setDepth(2));light.fillStyle(0xa4e7ce,.12);light.fillEllipse(w*.50,h*.45,w*.35,h*.18);}
       const horizon=this.track(this.add.graphics().setDepth(1.6));
       drawHorizonMist(horizon,state.area,w,h);
     }
@@ -322,7 +328,7 @@ export class WorldScene extends Phaser.Scene {
     const start=last?[last.x,last.y]:[.19,.73];
     const positions = [start,[start[0]-.06,start[1]+.03],[start[0]+.06,start[1]+.04]];
     this.avatars = s.party.flatMap((hero, i) => {
-      if (i === 2 && !s.flags.ritz) return [];
+      if ((i === 2 && !s.flags.ritz)||(i===1&&!s.flags.sena)) return [];
       const [px,py] = positions[i];
       const actor=hero.id as FieldActor;
       const texture=this.spriteFrame(actor,'down',0);
@@ -354,9 +360,10 @@ export class WorldScene extends Phaser.Scene {
       const dot = this.add.circle(x, y, main?5:3, main?0xffe0a5:0xa2d6d3, main?1:.55).setDepth(5);
       const name = this.add.text(x, y - 33, LABELS[id] || id, { fontFamily: 'Noto Sans JP, sans-serif', fontSize: w < 550 ? '10px' : '12px', color: main?'#fff2c7':'#d3e1e3', backgroundColor: '#061827c9', padding: {x:5,y:3} }).setOrigin(.5,.5).setDepth(6).setAlpha(main?1:.62);
       this.markerObjects.push(ring,dot,name);
-      ring.setInteractive({ useHandCursor: true });
+      ring.setInteractive(new Phaser.Geom.Circle(ring.radius,ring.radius,26),Phaser.Geom.Circle.Contains);
+      ring.input!.cursor='pointer';
       ring.on('pointerdown', (pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event: Phaser.Types.Input.EventData) => {
-        event.stopPropagation(); this.walkTo({ id, area: s.area }, true);
+        event.stopPropagation(); this.walkTo({ id, area: s.area }, false);
       });
       if (!this.reducesMotion && main) this.tweens.add({targets: ring, scale: 1.19, alpha: .52, duration: 1150, yoyo:true, repeat:-1});
     }
@@ -378,6 +385,10 @@ export class WorldScene extends Phaser.Scene {
       const texture=this.spriteFrame(id,'down',0);
       const sprite=this.track(this.add.sprite(pos.x*w,pos.y*h+20,texture.key,texture.frame).setOrigin(.5,this.paintedAtlases.has(id)?352/384:1).setDepth(6));
       sprite.setScale(this.loadedAtlases.has(id)?(w<550?.25:.33):(w<550?.325:.395));
+      sprite.setInteractive({useHandCursor:true});
+      sprite.on('pointerdown',(_pointer:Phaser.Input.Pointer,_x:number,_y:number,event:Phaser.Types.Input.EventData)=>{
+        event.stopPropagation();this.walkTo({id,area},false);
+      });
       tintFieldActor(sprite,area);
       this.facingBySprite.set(sprite,'down');
       const targetX=Phaser.Math.Clamp(pos.x*w+(i%2?24:-24),25,w-25);
@@ -456,6 +467,7 @@ export class WorldScene extends Phaser.Scene {
   }
   private walkTo({id,area}:{id:string;area:Area}, interact=false):void {
     if (!this.state || this.state.phase!=='explore' || this.state.area!==area) return;
+    this.selectedSite=id;this.game.canvas.dataset.selectedSite=id;
     const target=SITES[area][id];
     if (!target || !this.avatars[0]) return;
     const w=this.scale.width,h=this.scale.height;
@@ -479,6 +491,7 @@ export class WorldScene extends Phaser.Scene {
   }
   private pointAndWalk(pointer: Phaser.Input.Pointer):void {
     if (!this.state || this.state.phase!=='explore') return;
+    this.selectedSite=null;
     const w=this.scale.width,h=this.scale.height, x=pointer.x,y=pointer.y;
     if(y>h*.84) return; // leave the bottom dialogue/scene copy unobstructed
     // Ground taps ALWAYS move. Only an explicit glowing marker tap interacts.
@@ -552,8 +565,10 @@ export class WorldScene extends Phaser.Scene {
     if(broke||won)this.cameras.main.flash(150,190,235,220);
   }
   private nearestInteractable(): {id:string;name:string} | null {
-    if(!this.state||this.state.phase!=='explore'||!this.avatars[0])return null;
+    if(!this.state||this.state.phase!=='explore'||!this.avatars[0]||this.isWalking)return null;
     const lead=this.avatars[0],w=this.scale.width,h=this.scale.height;
+    const selected=this.selectedSite&&SITES[this.state.area][this.selectedSite];
+    if(selected&&Math.hypot(selected.x-lead.x/w,selected.y-lead.y/h)<.14)return {id:this.selectedSite!,name:LABELS[this.selectedSite!]};
     const nearest=Object.entries(SITES[this.state.area])
       .filter(([id])=>!this.joinedPartyMember(id))
       .map(([id,p])=>({id,name:LABELS[id]||id,d:Math.hypot((p.x*w-lead.x)/w,(p.y*h-lead.y)/h)}))
@@ -581,7 +596,8 @@ export class WorldScene extends Phaser.Scene {
     this.game.canvas.dataset.playerY=(lead.y/this.scale.height).toFixed(4);
     this.updateAvatarShadows();
     // Manual input always takes priority over an automatic click-to-walk route.
-    if(this.isWalking && this.keys.some(key=>key.isDown))this.cancelCallback();
+    if(this.keys.some(key=>key.isDown)){this.selectedSite=null;if(this.isWalking)this.cancelCallback();}
+    if(document.hidden||document.querySelector('dialog[open]')){if(this.isWalking)this.cancelCallback();return;}
     if(this.isWalking)return;
     const pauseNpc=document.hidden||!!document.querySelector('dialog[open]')||this.reducesMotion;
     for(const npc of this.npcActors){

@@ -1,3 +1,4 @@
+import {freshMemories,parseMemories} from './story.mjs';
 import { EQUIPMENT, grantVictory, parseProgress } from './expansion.mjs';
 
 // Separate optional sidecar; the original v1 save and phase-3 progress never change shape.
@@ -13,7 +14,7 @@ export const SHOP = Object.freeze({
   mechanic: { name:'白金の工具槌', price:150, description:'リッツの攻撃力を強化' },
   ward: { name:'星灯の守り', price:120, description:'全員が装備できる防具' },
 });
-export function freshLiving() { return { version:LIVING_VERSION, gold:200, accepted:[], claimed:[], purchased:[] }; }
+export function freshLiving() { return { version:LIVING_VERSION, gold:200, memory:freshMemories(), accepted:[], claimed:[], purchased:[] }; }
 const unique=(values, allowed)=>Array.isArray(values)&&values.length<=allowed.length&&values.every(x=>typeof x==='string'&&allowed.includes(x))&&new Set(values).size===values.length;
 export function parseLiving(raw) {
   if(typeof raw==='string'){if(raw.length>20000)throw Error('冒険情報が大きすぎます。');try{raw=JSON.parse(raw)}catch{throw Error('冒険情報がJSONではありません。')}}
@@ -22,7 +23,7 @@ export function parseLiving(raw) {
   const quests=Object.keys(QUESTS),goods=Object.keys(SHOP);
   if(!unique(raw.accepted,quests)||!unique(raw.claimed,quests)||!unique(raw.purchased,goods))throw Error('依頼・購入履歴が不正です。');
   if(raw.claimed.some(x=>!raw.accepted.includes(x)))throw Error('未受注の報酬は受け取れません。');
-  return {version:LIVING_VERSION,gold:raw.gold,accepted:[...raw.accepted],claimed:[...raw.claimed],purchased:[...raw.purchased]};
+  return {version:LIVING_VERSION,gold:raw.gold,memory:parseMemories(raw.memory),accepted:[...raw.accepted],claimed:[...raw.claimed],purchased:[...raw.purchased]};
 }
 export function questReady(id,state,progress) {
   if(!Object.hasOwn(QUESTS,id))return false;
@@ -74,6 +75,6 @@ export function tacticalIntent(state,progress=null){
   const candidates=open.length?open:active;
   const target=danger?candidates.reduce((best,i)=>state.party[i].hp<state.party[best].hp?i:best):candidates[Math.max(0,Math.floor(b.count/2)-1)%candidates.length];
   const scale=state.difficulty==='easy'?.7:state.difficulty==='hard'?1.35:1;
-  const base=boss?(heavy?36:danger?27:22):(piercing?20:14);
+  const base=boss?(heavy?52:danger?38:30):(piercing?30:20);
   return {target,damage:Math.round(base*scale),piercing,boost:heavy,focus:danger,name:heavy?'共鳴鐘撃':piercing?'装甲貫通':danger?'忘却の追撃':'単体攻撃'};
 }

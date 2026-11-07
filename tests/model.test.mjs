@@ -5,7 +5,7 @@ function advance(s, ids) { return ids.reduce((x, id) => interact(x, id), s); }
 function win(s, useEcho = false) {
   let turns = 0;
   while (s.phase === 'battle' && turns++ < 100) {
-    let cmd = 'arts';
+    let cmd = s.party[activeHero(s)].mp>=8?'arts':'attack';
     if (useEcho && s.resonance === 100 && s.battle.lastAction) cmd = 'echo';
     s = battleAction(s, cmd);
   }
@@ -59,7 +59,7 @@ test('unsupported commands and echo without fuel have no gameplay side effects',
   const before = JSON.stringify(s);
   s = battleAction(s, 'echo');
   assert.equal(s.battle.count, 0);
-  assert.equal(s.battle.hp, 105);
+  assert.equal(s.battle.hp, 140);
   assert.match(s.battle.log, /残響/);
   assert.deepEqual(battleAction(s, 'deleteEverything'), s);
   assert.notEqual(JSON.stringify(s), before);

@@ -1,3 +1,5 @@
+> この文書は初版設計です。現在の操作・物語・戦闘は [JOURNEY_REDESIGN.md](JOURNEY_REDESIGN.md) を参照してください。
+
 # LUMEN VEIL — 序章「消える港」実装設計
 
 ## 今回の完成範囲

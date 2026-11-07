@@ -1,3 +1,4 @@
+import {MEMORIES,OPENING,STORY_DIALOGUES} from './story.mjs';
 import { AREAS, HOTSPOTS, PARTY, objective, newGame, interact, activeHero, battleAction, retryBattle } from './model.mjs';
 import { saveGame, loadGame } from './save.mjs';
 import { EQUIPMENT, NPC_DIALOGUES, enemyIntent, equipItem, findTreasure, freshProgress, grantVictory, levelForXp, statsFor, visit } from './expansion.mjs';
@@ -116,7 +117,7 @@ function showControls() {
     ['1 · 歩く','PC：WASD・矢印キー。スマートフォン：行きたい場所をタップ。'],
     ['2 · 話す・調べる','NPCや光る印に近づき、Eキーか「話す・調べる」を押す。目印をタップしても移動できる。'],
     ['3 · 目的地がわからない','「目的地へ案内」を押すと、次に進む場所まで自動で歩く。'],
-    ['4 · 冒険の記録','上部メニューから保存・装備・依頼を確認。戦闘ではATBゲージが満ちたらコマンドを選ぶ。']
+    ['4 · 冒険の記録','上部メニューから保存・装備・依頼を確認。戦闘では敵の予告を見てコマンドを選ぶ。']
   ]){const h=document.createElement('h3');h.textContent=heading;const p=document.createElement('p');p.textContent=description;content.append(h,p);}
   const restore=document.createElement('button');
   restore.type='button';restore.className='control-guide-restore';
@@ -124,6 +125,7 @@ function showControls() {
   restore.addEventListener('click',()=>{
     onboardingDismissed=false;
     updateOnboarding();
+  $('field-onboarding').hidden=true;
     $('overlay').close();
   });
   content.append(restore);
@@ -150,7 +152,7 @@ function render() {
   switchScreen(state.phase);
   renderButtons();
   if (state.phase === 'ending') {
-    text('ending-copy', state.records.length === 2
+    text('ending-copy', living.memory.choice==='harbor'?'ミラの名前は港の灯に残った。あの光がある限り、帰る場所を忘れない。':living.memory.choice==='letter'?'ミラへの手紙を胸に、ノエルは次の空へ。今度こそ、この名前を届ける。':state.records.length === 2
       ? '消えた手紙と航海士ミラの名を記録した。小さな光を携え、飛空艇は雲海の向こうへ。'
       : '消えた名前を取り戻す手掛かりを求め、飛空艇は雲海の向こうへ。');
     announce(); return;
@@ -166,6 +168,7 @@ function render() {
   text('objective', objective(state));
   updateGuide();
   updateOnboarding();
+  $('field-onboarding').hidden=true;
   text('narrative', state.battle?.log || state.narrative);
   $('battle-panel').hidden = state.phase !== 'battle';
   $('defeat-panel').hidden = state.phase !== 'defeat';
@@ -215,10 +218,15 @@ function render() {
     $('foe-hp').max = b.maxHp; $('foe-hp').value = b.hp;
     $('foe-break').max = b.maxBreak; $('foe-break').value = b.break;
     const plan = enemyIntent({ ...state, battle: { ...b, count: b.count + (b.count % 2 === 0 ? 2 : 1) } });
-    const tactics=tacticalIntent(state,progress);
-    text('foe-intent', b.stagger ? 'BREAK! 敵の次の行動を妨害できる。' : tactics ? `敵AI予告：${tactics.name} → ${state.party[tactics.target].name}${tactics.piercing?'（防御貫通）':''}` : '敵の行動を観察する');
+    const tactics=b.intent||tacticalIntent(state,progress);
+    text('foe-intent', b.stagger ? 'BREAK! 敵の次の行動を妨害できる。' : tactics ? `次：${tactics.name} → ${state.party[tactics.target].name}（あと${2-b.count%2}行動）${tactics.piercing?'（防御貫通）':''}` : '敵の行動を観察する');
     const heroId = activeHero(state);
-    text('active-hero', heroId === null ? '操作できる仲間がいない。' : `${state.party[heroId].name} のターン  /  WAIT`);
+    const next=heroId===null?null:[1,2,3].map(offset=>(heroId+offset)%3).find(i=>state.party[i].hp>0&&(i!==2||state.flags.ritz));
+    text('active-hero', heroId === null ? '操作できる仲間がいない。' : `${state.party[heroId].name} → ${b.count%2===0?state.party[next??heroId].name+' → 敵':'敵'} · 共鳴 ${state.resonance}%`);
+    const artsLabel=['黎明斬 · MP8 / 崩し20','記憶を読む · MP8 / 全員の攻撃強化','解体撃 · MP8 / 崩し55'][heroId??0];
+    document.querySelector('[data-command=arts] strong').textContent=artsLabel;
+    document.querySelector('[data-command=guard] strong').textContent=heroId===0?'かばう · 仲間への被害を半減':'防御 · 自分の被害を半減';
+    document.querySelector('[data-command=echo] strong').textContent='残響 · 共鳴100 / 追加行動';
     const echo = document.querySelector('[data-command="echo"]');
     echo.disabled = state.resonance < 100 || !b.lastAction;
     const arts = document.querySelector('[data-command="arts"]'); arts.disabled = heroId === null || state.party[heroId].mp < 8;
@@ -230,6 +238,8 @@ function showNearbyMenu() {
   const panel=document.createElement('div');panel.className='nearby-menu';
   const note=document.createElement('p');note.textContent='フィールドの光の印をタップするか、近づいてEキーで調べられます。周辺一覧からも選べます。';
   panel.append(note);
+  const support=document.createElement('label');support.textContent='移動を省略して調べる（操作支援）';
+  const direct=document.createElement('input');direct.type='checkbox';support.prepend(direct);panel.append(support);
   for(const h of availableHotspots()){
     const button=document.createElement('button');button.type='button';button.className='nearby-item';button.dataset.hotspot=h.id;
     button.textContent=`${h.icon} ${h.label} — ${h.caption}`;
@@ -237,7 +247,7 @@ function showNearbyMenu() {
       // Wait for the previous dialog's close event before opening a cinematic
       // conversation. Otherwise its delayed close event tears down the new one.
       const overlay=$('overlay');
-      overlay.addEventListener('close',()=>selectHotspot(h.id),{once:true});
+      overlay.addEventListener('close',()=>direct.checked?selectHotspot(h.id):window.dispatchEvent(new CustomEvent('lv:walk',{detail:{id:h.id,area:state.area}})),{once:true});
       overlay.close();
     });
     panel.append(button);
@@ -250,15 +260,21 @@ $('btn-interact').addEventListener('click',()=>{
 });
 window.addEventListener('lv:proximity',event=>{
   nearbyTarget=event.detail?.id||null;
+  $('btn-interact').dataset.targetId=nearbyTarget||'';
   $('field-target-name').textContent=event.detail?.name||'光の印に近づこう';
   $('btn-interact').disabled=!nearbyTarget;
+  $('btn-interact').textContent=nearbyTarget?.startsWith('to-')?'進む':nearbyTarget==='escape'?'旅立つ':'話す・調べる';
 });
 function selectHotspot(id) {
   if (!state || state.phase !== 'explore') return;
   // Cancel any in-flight movement before changing the scene or quest state.
   window.dispatchEvent(new Event('lv:cancel-walk'));
+  if(id==='sign'&&state.flags.sena&&!living.memory.restored.includes('street')){openMemory('street',()=>selectHotspot(id));return;}
+  if(id==='boss'&&!living.memory.restored.includes('mira')){openMemories();return;}
+  if(id==='escape'&&!living.memory.choice){chooseMemory();return;}
   const old = state;
   state = interact(state, id);
+  if(id==='boss'&&state.battle){state.battle.break=60;state.resonance=Math.min(100,state.resonance+40);state.battle.log='ノエルがミラの名を呼ぶと、忘鐘の装甲にひびが走った。';}
   // Observable acknowledgement for async menu-close -> hotspot dispatch.
   const root=document.documentElement;
   root.dataset.lastHotspot=id;
@@ -271,17 +287,53 @@ function selectHotspot(id) {
   const cue=state.area!==old.area?`area-${state.area}`:state.records.length>old.records.length?'pickup':'select';
   window.dispatchEvent(new CustomEvent('lv:sfx', { detail: { name: cue } }));
   render();
-  const dialogue = NPC_DIALOGUES[old.area]?.[id];
+  const dialogue = STORY_DIALOGUES[id] || NPC_DIALOGUES[old.area]?.[id];
   if (dialogue) showConversation(dialogue);
   if (state.phase !== 'battle') void checkpoint();
 }
 window.addEventListener('lv:hotspot', event => selectHotspot(event.detail.id));
+function afterDialog(action){
+ const overlay=$('overlay');
+ if(overlay.open){overlay.addEventListener('close',action,{once:true});overlay.close();}else action();
+}
+function openMemory(id,done=()=>{}){
+ const memory=MEMORIES[id];const panel=document.createElement('div');panel.className='memory-puzzle';
+ const title=document.createElement('h3');title.textContent=memory.title;panel.append(title);
+ for(const clue of memory.clues){const p=document.createElement('p');p.textContent=clue;panel.append(p);}
+ const response=document.createElement('p');response.setAttribute('role','status');panel.append(response);
+ memory.answers.forEach((answer,index)=>{const button=document.createElement('button');button.textContent=answer;button.dataset.memoryAnswer=String(index);
+ button.onclick=()=>{if(index!==memory.correct){response.textContent='セナ「もう一度、二つの痕跡に共通するものを探しましょう」';return;}
+ if(!living.memory.restored.includes(id))living.memory.restored.push(id);
+ state={...state,narrative:memory.result};render();void checkpoint();
+ afterDialog(()=>{showConversation([{speaker:'セナ',line:memory.result}]);if(done)$('overlay').addEventListener('close',done,{once:true});});};panel.append(button);});
+ modal('記憶をつなぐ',panel);
+}
+function openMemories(){
+ const panel=document.createElement('div');panel.className='memory-puzzle';
+ for(const [id,memory] of Object.entries(MEMORIES)){
+ const button=document.createElement('button');const restored=living.memory.restored.includes(id);
+ const available=id==='street'?state.flags.sena:id==='maker'?progress.visited.includes('market')&&progress.visited.includes('observatory'):state.records.includes('letter')&&state.records.includes('badge');
+ button.textContent=(restored?'✓ ':available?'つなぐ：':'手がかり不足：')+memory.title;
+ button.disabled=restored||!available;button.dataset.memory=id;
+ button.onclick=()=>afterDialog(()=>openMemory(id));panel.append(button);
+ if(!available){const p=document.createElement('p');p.textContent=id==='mira'?'港の手紙と、整備区画の名札を調べよう。':id==='maker'?'市場のユイと観測塔のエルを訪ねよう。':'港の記録士セナと話そう。';panel.append(p);}}
+ modal('記憶の手帳',panel);
+}
+function chooseMemory(){
+ const panel=document.createElement('div');panel.className='memory-puzzle';
+ const intro=document.createElement('p');intro.textContent='復元した記憶はまだ不安定だ。港の灯に定着させるか、手紙に宿して運ぶか。どちらを選んでも旅は続く。';panel.append(intro);
+ for(const [choice,label,detail] of [['harbor','港に名前を残す','港の人々がミラを覚え続ける。'],['letter','手紙に名前を宿す','ノエルがミラの名を次の空へ届ける。']]){
+ const button=document.createElement('button');button.textContent=label+' — '+detail;button.dataset.memoryChoice=choice;
+ button.onclick=()=>{living.memory.choice=choice;afterDialog(()=>selectHotspot('escape'));};panel.append(button);}
+ modal('この名前を、どこへ届ける？',panel);
+}
+const memoryButton=document.createElement('button');memoryButton.id='btn-memories';memoryButton.textContent='記憶の手帳';memoryButton.onclick=openMemories;document.querySelector('.field-actions').append(memoryButton);
 function start() {
   onboardingDismissed=false;
   state = newGame(settings.difficulty);
   progress = visit(freshProgress(), 'harbor');
   living = freshLiving();
-  beep(true); render(); window.dispatchEvent(new Event('lv:reset-field')); void checkpoint();
+  beep(true); render(); window.dispatchEvent(new Event('lv:reset-field')); void checkpoint();showConversation(OPENING);
 }
 async function resume() {
   try {
@@ -332,7 +384,8 @@ function showConversation(lines) {
   const hint=document.createElement('span');hint.className='cinematic-dialogue-hint';hint.textContent='Enter / Space で進む · Esc で閉じる';
   const next=document.createElement('button');next.type='button';next.className='primary-btn cinematic-next';
   controls.append(progress,hint,next);
-  story.append(eyebrow,speaker,line,controls);
+  const history=document.createElement('details');const summary=document.createElement('summary');summary.textContent='会話履歴';history.append(summary);
+  story.append(eyebrow,speaker,line,controls,history);
   container.append(portraitFrame,story);
   let index=0;
   const overlay=$('overlay');
@@ -346,6 +399,7 @@ function showConversation(lines) {
   overlay.addEventListener('close',cleanup,{once:true,signal:controller.signal});
   const update=()=>{
     const current=lines[index];
+    const entry=document.createElement('p');entry.textContent=current.speaker+'：'+current.line;history.append(entry);
     speaker.textContent=current.speaker;
     line.textContent=current.line;
     const mood=dialogueMood(current.speaker,current.line);

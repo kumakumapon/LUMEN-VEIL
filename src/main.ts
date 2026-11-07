@@ -2,6 +2,7 @@ import { AtbDirector } from './atb';
 import { OriginalScore } from './sound';
 import type { GameEvent, GameView, Settings } from './types';
 import './styles.css';
+import './journey.css';
 
 // Instantiate presentation layers *before* the original app begins emitting state.
 // Neither renderer, ATB nor audio ever mutate the saved v1 model.

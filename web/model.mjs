@@ -4,7 +4,7 @@ import { tacticalIntent } from './living.mjs';
 export const SAVE_VERSION = 1;
 export const PARTY = [
   { id: 'noel', name: 'ノエル', role: '運び屋 / 剣', maxHp: 180, maxMp: 48, power: 24, art: '黎明斬' },
-  { id: 'sena', name: 'セナ', role: '記録士 / 術', maxHp: 145, maxMp: 75, power: 19, art: '雷の記述' },
+  { id: 'sena', name: 'セナ', role: '記録士 / 術', maxHp: 145, maxMp: 75, power: 19, art: '記憶読解' },
   { id: 'ritz', name: 'リッツ', role: '整備士 / 技', maxHp: 210, maxMp: 42, power: 22, art: '解体撃' },
 ];
 export const AREAS = {
@@ -59,7 +59,7 @@ export function newGame(difficulty = 'normal') {
     flags: { sena: false, sign: false, ritz: false, lamp: false, key: false, boss: false, escaped: false },
     records: [], party: PARTY.map(h => ({ ...h, hp: h.maxHp, mp: h.maxMp })),
     difficulty, resonance: 0, battle: null,
-    narrative: 'ノエル「……宛名が、消えている。誰に届けるはずだったんだ？」',
+    narrative: '夜明けまでに、この手紙を届ける。約束だけは、まだ覚えている。',
   };
 }
 export function objective(s) {
@@ -82,9 +82,10 @@ const spawn = (s, kind) => {
     ...s, phase: 'battle',
     battle: {
       kind, name: boss ? '忘鐘 — 無名の守護機' : '灰翼の機械兵',
-      hp: boss ? 270 : 105, maxHp: boss ? 270 : 105,
+      hp: boss ? 340 : 140, maxHp: boss ? 340 : 140,
       break: 100, maxBreak: 100, stagger: false, guard: [],
       count: 0, actorIndex: 0, lastAction: null,
+      intent: tacticalIntent({...s,battle:{kind,hp:boss?340:140,maxHp:boss?340:140,count:2,guard:[]}}),
       log: boss ? '鐘の内側で失われた名前が明滅する。次の大技を警戒せよ。' : '機械兵が回廊を塞いだ！',
     },
     narrative: boss ? '忘鐘「──名を、返せ。」' : 'リッツ「そこの人！ 手を貸して！」',
@@ -140,7 +141,8 @@ export function battleAction(state, command, progress = null) {
     if (hero.mp < 8) { b.log = 'MPが足りない。通常攻撃か防御を選ぼう。'; return s; }
     hero.mp -= 8;
     damage = actorId === 0 ? 32 : actorId === 1 ? 34 : 29;
-    shred = actorId === 2 ? 44 : 34;
+    shred = actorId === 2 ? 55 : actorId === 1 ? 22 : 20;
+    if(actorId===1){b.scanned=true;text += '記憶を読み、この戦闘中の味方の攻撃を強化！';}
     text += `${hero.art}！`;
   } else if (command === 'attack') {
     damage = hero.power;
@@ -148,7 +150,8 @@ export function battleAction(state, command, progress = null) {
     text += '攻撃！';
   } else if (command === 'guard') {
     b.guard = [...new Set([...b.guard, actorId])];
-    text += '身構えて衝撃に備える。';
+    if(actorId===0)b.cover = actorId;
+    text += actorId===0?'仲間をかばい、次の一撃を引き受ける。':'身構えて次の被害を半減する。';
   } else {
     if (s.resonance < 100 || !b.lastAction) { b.log = '残響には共鳴100と、再演できる直前の味方の技が必要だ。'; return s; }
     s.resonance -= 100;
@@ -159,6 +162,7 @@ export function battleAction(state, command, progress = null) {
   if (damage > 0) {
     if (progress) damage += statsFor(progress, hero.id).power;
     if (b.stagger) damage = Math.round(damage * 1.4);
+    if(b.scanned && command!=='echo')damage=Math.round(damage*1.15);
     b.hp = Math.max(0, b.hp - damage);
     b.break = Math.max(0, b.break - shred);
     text += ` ${damage}ダメージ。`;
@@ -168,8 +172,7 @@ export function battleAction(state, command, progress = null) {
     }
     if (b.break === 0 && !b.stagger) { b.stagger = true; text += ' BREAK！敵がひるんだ。'; }
   }
-  b.count++;
-  b.actorIndex = (actorId + 1) % s.party.length;
+  if(command!=='echo'){b.count++; b.actorIndex = (actorId + 1) % s.party.length;}
   if (b.hp === 0) {
     const isBoss = b.kind === 'boss';
     s.phase = 'explore'; s.battle = null;
@@ -180,24 +183,26 @@ export function battleAction(state, command, progress = null) {
     return s;
   }
   // Every second player action invites an enemy action. WAIT pauses time during selection.
-  if (b.count % 2 === 0) {
+  if (command!=='echo' && b.count % 2 === 0) {
     if (b.stagger) {
       text += ' 敵は崩れて行動できない。';
       b.stagger = false;
       b.break = b.maxBreak;
     } else {
-      const plan = tacticalIntent(s);
+      const plan = b.intent || tacticalIntent(s);
       if (!plan) { b.log = text; return s; }
-      const victim = plan.target;
+      const victim = Number.isInteger(b.cover)&&s.party[b.cover]?.hp>0?b.cover:plan.target;
       const target = s.party[victim];
       let hit = plan.damage;
       if (progress) hit = Math.max(1, hit - Math.floor(statsFor(progress, target.id).guard * (plan.piercing ? .3 : 1)));
-      if (b.guard.includes(victim)) { hit = Math.floor(hit / 2); b.guard = b.guard.filter(x => x !== victim); }
+      if (b.guard.includes(victim)) hit = Math.floor(hit / 2);
+      b.guard=[]; delete b.cover;
       target.hp = Math.max(0, target.hp - hit);
       text += ` 敵の戦術：${plan.name}。`;
       text += ` ${b.name}の反撃！${target.name}に${hit}ダメージ。`;
     }
   }
+  if(command!=='echo' && b.count%2===0)b.intent=tacticalIntent({...s,battle:{...b,count:b.count+2,guard:[]}});
   b.log = text;
   if (s.party.every((h, i) => h.hp === 0 || (i === 2 && !s.flags.ritz))) {
     s.phase = 'defeat';
